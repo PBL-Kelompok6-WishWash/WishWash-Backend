@@ -51,6 +51,21 @@ func ConnectDatabase() {
 		&model.Settings{},
 		&model.Notifikasi{},
 		&model.ReferensiStatusLayanan{},
+
+		// --- Modul Transaksi Inti ---
+		&model.Order{},
+		&model.PromoOrder{},
+
+		// --- Modul Pasca-Order & Tracking ---
+		&model.Pembayaran{},
+		&model.Penilaian{},
+		&model.TrackingPengiriman{},
+		&model.RiwayatStatusDetail{},
+
+		// --- Modul Chat & Komunikasi ---
+		&model.RoomChat{},
+		&model.PesanChat{},
+		&model.ChatGambar{},
 	)
 	if err != nil {
 		log.Fatal("❌ Gagal melakukan migrasi tabel: ", err)
