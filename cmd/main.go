@@ -6,6 +6,8 @@ import (
 	"github.com/PBL-Kelompok6-WishWash/backend/config"
 	"github.com/PBL-Kelompok6-WishWash/backend/controller"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
+	"github.com/PBL-Kelompok6-WishWash/backend/middleware"
+	"net/http"
 	"github.com/PBL-Kelompok6-WishWash/backend/seeder"
 	"github.com/gin-gonic/gin"
 )
@@ -26,13 +28,36 @@ func main() {
 	r := gin.Default()
 
 	// 5. Atur Papan Petunjuk Jalan (Routing API)
+	// Initialize API versioning
 	api := r.Group("/api/v1")
 	{
-		// Modul Auth
+		// Public routes: No authentication required
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", authController.Register)
 			auth.POST("/login", authController.Login)
+		}
+
+		// Protected routes: Requires valid JWT token
+		protected := api.Group("/protected")
+		protected.Use(middleware.JWTAuthMiddleware()) 
+		{
+			// Test endpoint to verify JWT claims extraction
+			protected.GET("/profil-saya", func(c *gin.Context) {
+				userID, _ := c.Get("id_user")
+				username, _ := c.Get("username")
+				
+				c.JSON(http.StatusOK, gin.H{
+					"status":  "success",
+					"message": "Autentikasi berhasil, akses ke rute terproteksi diizinkan",
+					"data": gin.H{
+						"user_id":  userID,
+						"username": username,
+					},
+				})
+			})
+			
+			// TODO: Add other protected routes (e.g., layananController, transaksiController)
 		}
 	}
 
