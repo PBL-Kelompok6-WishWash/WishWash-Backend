@@ -17,6 +17,8 @@ type RegisterInput struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required,min=6"`
 	Email    string `json:"email" binding:"required,email"`
+	NamaLengkap string `json:"nama_lengkap" binding:"required"`
+    NoTelp      string `json:"no_telp" binding:"required"`
 	RoleID   uint   `json:"id_role" binding:"required"` // Pakai ID (angka), bukan string teks
 }
 
@@ -32,41 +34,65 @@ type AuthController interface {
 
 type authController struct {
 	userRepo repository.UserRepository
+	pelangganRepo repository.PelangganRepository
 }
 
-func NewAuthController(userRepo repository.UserRepository) AuthController {
-	return &authController{userRepo}
+func NewAuthController(userRepo repository.UserRepository, pelangganRepo repository.PelangganRepository) AuthController {
+	return &authController{userRepo, pelangganRepo}
 }
 
 // 4. Logika Register
 func (ctrl *authController) Register(c *gin.Context) {
 	var input RegisterInput
-	
+
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak lengkap atau format salah"})
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengenkripsi password"})
+	// 1. Cek Username (Pencegatan yang kita buat sebelumnya)
+	_, err := ctrl.userRepo.FindByUsername(input.Username)
+	if err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username sudah terdaftar! 🧼"})
 		return
 	}
 
-	// Mapping yang benar: hanya masukkan data yang benar-benar ada di struct model.User
+	// 2. Hash Password
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+
+	// 3. Siapkan Model User
 	user := model.User{
 		Username: input.Username,
 		Password: string(hashedPassword),
 		Email:    input.Email,
-		RoleID:   input.RoleID, // Gunakan RoleID (uint)
+		RoleID:   input.RoleID,
 	}
 
+	// 4. Simpan ke tabel 'user'
 	if err := ctrl.userRepo.CreateUser(&user); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Username atau Email mungkin sudah terdaftar"})
+		c.JSON(http.StatusConflict, gin.H{"error": "Email sudah digunakan!"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Registrasi akun berhasil!", "username": user.Username})
+	// 💡 5. SIMPAN KE TABEL PELANGGAN (Jika RoleID adalah 2)
+	if input.RoleID == 2 {
+		pelanggan := model.Pelanggan{
+			UserID:      user.IDUser,      // Ambil ID dari user yang baru dibuat
+			NamaLengkap: input.NamaLengkap,
+			NoTelp:      input.NoTelp,
+		}
+
+		if err := ctrl.pelangganRepo.CreatePelanggan(&pelanggan); err != nil {
+			// Jika gagal simpan pelanggan, sebaiknya beri tahu user
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan profil pelanggan"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":  "Registrasi akun berhasil!",
+		"username": user.Username,
+	})
 }
 
 // 5. Logika Login

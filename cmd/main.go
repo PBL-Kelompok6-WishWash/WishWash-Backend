@@ -20,9 +20,10 @@ func main() {
 	// 2. Pekerjakan "Koki" (Repository) dan beri dia akses ke Database
 	// ⚠️ Pastikan di dalam file config kamu benar-benar ada variabel global bernama 'DB'
 	userRepo := repository.NewUserRepository(config.DB)
+	pelangganRepo := repository.NewPelangganRepository(config.DB)
 
 	// 3. Pekerjakan "Pelayan" (Controller) dan sambungkan dia dengan sang Koki
-	authController := controller.NewAuthController(userRepo)
+	authController := controller.NewAuthController(userRepo, pelangganRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
