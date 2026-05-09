@@ -74,7 +74,7 @@ func (ctrl *authController) Register(c *gin.Context) {
 		return
 	}
 
-	// 💡 5. SIMPAN KE TABEL PELANGGAN (Jika RoleID adalah 2)
+	//  5. SIMPAN KE TABEL PELANGGAN (Jika RoleID adalah 2)
 	if input.RoleID == 2 {
 		pelanggan := model.Pelanggan{
 			UserID:      user.IDUser,      // Ambil ID dari user yang baru dibuat
