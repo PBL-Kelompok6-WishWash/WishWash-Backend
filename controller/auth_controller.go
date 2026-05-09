@@ -83,7 +83,7 @@ func (ctrl *authController) Register(c *gin.Context) {
 	}
 
 	// 5. SIMPAN KE TABEL PELANGGAN ATAU KARYAWAN BERDASARKAN ROLE
-	if input.RoleID == 2 {
+	if input.RoleID == 3 {
 		pelanggan := model.Pelanggan{
 			UserID:      user.IDUser,
 			NamaLengkap: input.NamaLengkap,
@@ -93,7 +93,7 @@ func (ctrl *authController) Register(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan profil pelanggan"})
 			return
 		}
-	} else if input.RoleID == 1 {
+	} else if input.RoleID == 2 {
 		karyawan := model.Karyawan{
 			UserID:             user.IDUser,
 			NamaKaryawan:       input.NamaLengkap, // Kita pakai input.NamaLengkap untuk mengisi NamaKaryawan
