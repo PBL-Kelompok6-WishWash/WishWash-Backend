@@ -35,10 +35,13 @@ type AuthController interface {
 type authController struct {
 	userRepo repository.UserRepository
 	pelangganRepo repository.PelangganRepository
+	karyawanRepo  repository.KaryawanRepository
 }
 
-func NewAuthController(userRepo repository.UserRepository, pelangganRepo repository.PelangganRepository) AuthController {
-	return &authController{userRepo, pelangganRepo}
+func NewAuthController(userRepo repository.UserRepository, 
+					   pelangganRepo repository.PelangganRepository,
+					   karyawanRepo repository.KaryawanRepository,) AuthController {
+	return &authController{userRepo, pelangganRepo, karyawanRepo}
 }
 
 // 4. Logika Register
@@ -50,10 +53,15 @@ func (ctrl *authController) Register(c *gin.Context) {
 		return
 	}
 
+	if input.RoleID != 1 && input.RoleID != 2 && input.RoleID != 3 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role tidak valid! Masukkan 1 (Karyawan), 2 (Pelanggan), atau 3 (Admin)"})
+		return
+	}
+
 	// 1. Cek Username (Pencegatan yang kita buat sebelumnya)
 	_, err := ctrl.userRepo.FindByUsername(input.Username)
 	if err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Username sudah terdaftar! 🧼"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username sudah terdaftar!"})
 		return
 	}
 
@@ -74,17 +82,26 @@ func (ctrl *authController) Register(c *gin.Context) {
 		return
 	}
 
-	//  5. SIMPAN KE TABEL PELANGGAN (Jika RoleID adalah 2)
+	// 5. SIMPAN KE TABEL PELANGGAN ATAU KARYAWAN BERDASARKAN ROLE
 	if input.RoleID == 2 {
 		pelanggan := model.Pelanggan{
-			UserID:      user.IDUser,      // Ambil ID dari user yang baru dibuat
+			UserID:      user.IDUser,
 			NamaLengkap: input.NamaLengkap,
 			NoTelp:      input.NoTelp,
 		}
-
 		if err := ctrl.pelangganRepo.CreatePelanggan(&pelanggan); err != nil {
-			// Jika gagal simpan pelanggan, sebaiknya beri tahu user
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan profil pelanggan"})
+			return
+		}
+	} else if input.RoleID == 1 {
+		karyawan := model.Karyawan{
+			UserID:             user.IDUser,
+			NamaKaryawan:       input.NamaLengkap, // Kita pakai input.NamaLengkap untuk mengisi NamaKaryawan
+			NoTelp:             input.NoTelp,
+			StatusKetersediaan: "Tersedia",        // Beri nilai default
+		}
+		if err := ctrl.karyawanRepo.CreateKaryawan(&karyawan); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan profil karyawan"})
 			return
 		}
 	}
