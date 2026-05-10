@@ -58,6 +58,11 @@ func (ctrl *authController) Register(c *gin.Context) {
 		return
 	}
 
+	if input.RoleID != 2 && input.RoleID != 3 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role tidak valid atau tidak diizinkan! Admin hanya bisa dibuat oleh sistem. 🛑"})
+		return
+	}
+	
 	// 1. Cek Username (Pencegatan yang kita buat sebelumnya)
 	_, err := ctrl.userRepo.FindByUsername(input.Username)
 	if err == nil {

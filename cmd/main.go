@@ -9,6 +9,7 @@ import (
 	"github.com/PBL-Kelompok6-WishWash/backend/middleware"
 	"net/http"
 	"github.com/PBL-Kelompok6-WishWash/backend/seeder"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,6 +29,12 @@ func main() {
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
+
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true // Mengizinkan semua port/website (termasuk localhost:3000)
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
+	r.Use(cors.New(corsConfig))
 
 	// 5. Atur Papan Petunjuk Jalan (Routing API)
 	// Initialize API versioning
