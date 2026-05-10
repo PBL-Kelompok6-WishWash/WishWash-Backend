@@ -2,42 +2,44 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/PBL-Kelompok6-WishWash/backend/config"
 	"github.com/PBL-Kelompok6-WishWash/backend/controller"
-	"github.com/PBL-Kelompok6-WishWash/backend/repository"
 	"github.com/PBL-Kelompok6-WishWash/backend/middleware"
-	"net/http"
+	"github.com/PBL-Kelompok6-WishWash/backend/repository"
 	"github.com/PBL-Kelompok6-WishWash/backend/seeder"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// 1. Nyalakan Mesin Database (Sudah disesuaikan dengan nama fungsimu!)
+	// 1. Nyalakan Mesin Database
 	config.ConnectDatabase()
-
 	seeder.RunAllSeeders(config.DB)
-	// 2. Pekerjakan "Koki" (Repository) dan beri dia akses ke Database
-	// ⚠️ Pastikan di dalam file config kamu benar-benar ada variabel global bernama 'DB'
+
+	// 2. Pekerjakan "Koki" (Repository)
 	userRepo := repository.NewUserRepository(config.DB)
 	pelangganRepo := repository.NewPelangganRepository(config.DB)
 	karyawanRepo := repository.NewKaryawanRepository(config.DB)
+	adminRepo := repository.NewAdminRepository(config.DB)
 
-	// 3. Pekerjakan "Pelayan" (Controller) dan sambungkan dia dengan sang Koki
-	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo)
+	// 3. Pekerjakan "Pelayan" (Controller)
+	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo)
+	
+	// 💡 TAMBAHAN BARU: Inisialisasi Profile Controller (Satu pelayan untuk semua role)
+	profileController := controller.NewProfileController(userRepo, adminRepo, karyawanRepo, pelangganRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
 
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowAllOrigins = true // Mengizinkan semua port/website (termasuk localhost:3000)
+	corsConfig.AllowAllOrigins = true
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	r.Use(cors.New(corsConfig))
 
 	// 5. Atur Papan Petunjuk Jalan (Routing API)
-	// Initialize API versioning
 	api := r.Group("/api/v1")
 	{
 		// Public routes: No authentication required
@@ -51,7 +53,7 @@ func main() {
 		protected := api.Group("/protected")
 		protected.Use(middleware.JWTAuthMiddleware()) 
 		{
-			// Test endpoint to verify JWT claims extraction
+			// Test endpoint
 			protected.GET("/profil-saya", func(c *gin.Context) {
 				userID, _ := c.Get("id_user")
 				username, _ := c.Get("username")
@@ -66,7 +68,9 @@ func main() {
 				})
 			})
 			
-			// TODO: Add other protected routes (e.g., layananController, transaksiController)
+			// 💡 TAMBAHAN BARU: Rute untuk Update Profile (Pakai PUT karena meng-update data yang sudah ada)
+			protected.PUT("/profile/update", profileController.UpdateProfile)
+			protected.PUT("/password/update", profileController.UpdatePassword)
 		}
 	}
 

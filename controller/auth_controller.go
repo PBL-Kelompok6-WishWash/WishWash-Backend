@@ -14,12 +14,12 @@ import (
 
 // 1. DTO (Data Transfer Object) disesuaikan dengan model.User yang asli
 type RegisterInput struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=6"`
-	Email    string `json:"email" binding:"required,email"`
+	Username    string `json:"username" binding:"required"`
+	Password    string `json:"password" binding:"required,min=6"`
+	Email       string `json:"email" binding:"required,email"`
 	NamaLengkap string `json:"nama_lengkap" binding:"required"`
-    NoTelp      string `json:"no_telp" binding:"required"`
-	RoleID   uint   `json:"id_role" binding:"required"` // Pakai ID (angka), bukan string teks
+	NoTelp      string `json:"no_telp" binding:"required"`
+	RoleID      uint   `json:"id_role" binding:"required"` // Pakai ID (angka), bukan string teks
 }
 
 type LoginInput struct {
@@ -33,15 +33,17 @@ type AuthController interface {
 }
 
 type authController struct {
-	userRepo repository.UserRepository
+	userRepo      repository.UserRepository
 	pelangganRepo repository.PelangganRepository
 	karyawanRepo  repository.KaryawanRepository
+	adminRepo     repository.AdminRepository
 }
 
-func NewAuthController(userRepo repository.UserRepository, 
-					   pelangganRepo repository.PelangganRepository,
-					   karyawanRepo repository.KaryawanRepository,) AuthController {
-	return &authController{userRepo, pelangganRepo, karyawanRepo}
+func NewAuthController(userRepo repository.UserRepository,
+						pelangganRepo repository.PelangganRepository,
+						karyawanRepo repository.KaryawanRepository,
+						adminRepo repository.AdminRepository,) AuthController {
+						return &authController{userRepo, pelangganRepo, karyawanRepo, adminRepo}
 }
 
 // 4. Logika Register
@@ -54,7 +56,7 @@ func (ctrl *authController) Register(c *gin.Context) {
 	}
 
 	if input.RoleID != 1 && input.RoleID != 2 && input.RoleID != 3 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Role tidak valid! Masukkan 1 (Karyawan), 2 (Pelanggan), atau 3 (Admin)"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role tidak valid! Masukkan 1 (Admin), 2 (Karyawan), atau 3 (Pelanggan)"})
 		return
 	}
 
@@ -62,7 +64,7 @@ func (ctrl *authController) Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Role tidak valid atau tidak diizinkan! Admin hanya bisa dibuat oleh sistem. 🛑"})
 		return
 	}
-	
+
 	// 1. Cek Username (Pencegatan yang kita buat sebelumnya)
 	_, err := ctrl.userRepo.FindByUsername(input.Username)
 	if err == nil {
@@ -103,7 +105,7 @@ func (ctrl *authController) Register(c *gin.Context) {
 			UserID:             user.IDUser,
 			NamaKaryawan:       input.NamaLengkap, // Kita pakai input.NamaLengkap untuk mengisi NamaKaryawan
 			NoTelp:             input.NoTelp,
-			StatusKetersediaan: "Tersedia",        // Beri nilai default
+			StatusKetersediaan: "Tersedia", // Beri nilai default
 		}
 		if err := ctrl.karyawanRepo.CreateKaryawan(&karyawan); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan profil karyawan"})
@@ -140,6 +142,31 @@ func (ctrl *authController) Login(c *gin.Context) {
 		return
 	}
 
+	var displayName string
+
+	switch user.RoleID {
+	case 1: // ADMIN
+		// Admin tetap pakai userRepo jika kamu belum buat adminRepo
+		admin, err := ctrl.adminRepo.FindByUserID(user.IDUser)
+		if err == nil {
+			displayName = admin.NamaAdmin
+		}
+	case 2: // KARYAWAN
+		// 💡 Panggil dari karyawanRepo
+		karyawan, err := ctrl.karyawanRepo.FindByUserID(user.IDUser)
+		if err == nil {
+			displayName = karyawan.NamaKaryawan
+		}
+	case 3: // PELANGGAN
+		// 💡 Panggil dari pelangganRepo
+		pelanggan, err := ctrl.pelangganRepo.FindByUserID(user.IDUser)
+		if err == nil {
+			displayName = pelanggan.NamaLengkap
+		}
+	default:
+		displayName = "User"
+	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "rahasia_wishwash_pbl_6"
@@ -159,8 +186,9 @@ func (ctrl *authController) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Autentikasi berhasil.",
-		"token":   tokenString,
-		"id_role": user.RoleID,
+		"message":    "Autentikasi berhasil.",
+		"token":      tokenString,
+		"id_role":    user.RoleID,
+		"display_name": displayName,
 	})
 }

@@ -8,6 +8,7 @@ import (
 type KaryawanRepository interface {
 	CreateKaryawan(karyawan *model.Karyawan) error
 	FindByUserID(userID uint) (*model.Karyawan, error)
+	UpdateKaryawan(karyawan *model.Karyawan) error
 }
 
 type karyawanRepository struct {
@@ -29,4 +30,8 @@ func (r *karyawanRepository) FindByUserID(userID uint) (*model.Karyawan, error) 
 		return nil, err
 	}
 	return &karyawan, nil
+}
+
+func (r *karyawanRepository) UpdateKaryawan(karyawan *model.Karyawan) error {
+	return r.db.Model(karyawan).Where("id_user = ?", karyawan.UserID).Update("nama_karyawan", karyawan.NamaKaryawan).Error
 }

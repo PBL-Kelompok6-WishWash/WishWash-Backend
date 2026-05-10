@@ -9,6 +9,7 @@ import (
 type PelangganRepository interface {
 	CreatePelanggan(pelanggan *model.Pelanggan) error
 	FindByUserID(userID uint) (*model.Pelanggan, error)
+	UpdatePelanggan(pelanggan *model.Pelanggan) error
 }
 
 // 2. Struct
@@ -37,4 +38,8 @@ func (r *pelangganRepository) FindByUserID(userID uint) (*model.Pelanggan, error
 	}
 
 	return &pelanggan, nil // Kalau ketemu, kembalikan data
+}
+
+func (r *pelangganRepository) UpdatePelanggan(pelanggan *model.Pelanggan) error {
+	return r.db.Model(pelanggan).Where("id_user = ?", pelanggan.UserID).Update("nama_lengkap", pelanggan.NamaLengkap).Error
 }

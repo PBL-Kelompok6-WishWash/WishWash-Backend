@@ -5,10 +5,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// 1. Interface: Kontrak kerja menggunakan Username
+// 1. Interface
 type UserRepository interface {
 	CreateUser(user *model.User) error
 	FindByUsername(username string) (*model.User, error)
+	UpdateUser(user *model.User) error
+	FindByID(userID uint) (*model.User, error)
 }
 
 // 2. Struct
@@ -26,15 +28,22 @@ func (r *userRepository) CreateUser(user *model.User) error {
 	return r.db.Create(user).Error
 }
 
-// 5. Implementasi FindByUsername: Mencari berdasarkan Username
+// 5. Implementasi FindByUsername
 func (r *userRepository) FindByUsername(username string) (*model.User, error) {
 	var user model.User
-	
-	// Cari di database: "SELECT * FROM users WHERE username = ? LIMIT 1"
 	err := r.db.Where("username = ?", username).First(&user).Error
 	if err != nil {
-		return nil, err // Kalau username nggak ketemu
+		return nil, err
 	}
-	
-	return &user, nil // Kalau ketemu, kembalikan data
+	return &user, nil
+}
+
+func (r *userRepository) UpdateUser(user *model.User) error {
+	return r.db.Model(user).Updates(user).Error
+}
+
+func (r *userRepository) FindByID(userID uint) (*model.User, error) {
+	var user model.User
+	err := r.db.First(&user, userID).Error
+	return &user, err
 }
