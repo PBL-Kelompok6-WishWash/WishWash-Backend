@@ -122,25 +122,27 @@ func (ctrl *authController) Login(c *gin.Context) {
 	var input LoginInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format permintaan tidak valid."})
 		return
 	}
 
 	user, err := ctrl.userRepo.FindByUsername(input.Username)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username tidak ditemukan"})
+		// Pesan error spesifik untuk Username
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Username yang Anda masukkan tidak terdaftar di sistem."})
 		return
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password))
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Password salah"})
+		// Pesan error spesifik untuk Password
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Kata sandi yang Anda masukkan tidak sesuai."})
 		return
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "rahasia_wishwash_pbl_6" 
+		jwtSecret = "rahasia_wishwash_pbl_6"
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -152,12 +154,12 @@ func (ctrl *authController) Login(c *gin.Context) {
 
 	tokenString, err := token.SignedString([]byte(jwtSecret))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat token login"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Terjadi kesalahan sistem saat membuat sesi autentikasi."})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Login berhasil!",
+		"message": "Autentikasi berhasil.",
 		"token":   tokenString,
 		"id_role": user.RoleID,
 	})
