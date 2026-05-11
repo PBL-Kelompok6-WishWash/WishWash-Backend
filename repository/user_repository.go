@@ -11,6 +11,7 @@ type UserRepository interface {
 	FindByUsername(username string) (*model.User, error)
 	UpdateUser(user *model.User) error
 	FindByID(userID uint) (*model.User, error)
+	DeleteUser(id uint) error
 }
 
 // 2. Struct
@@ -46,4 +47,8 @@ func (r *userRepository) FindByID(userID uint) (*model.User, error) {
 	var user model.User
 	err := r.db.First(&user, userID).Error
 	return &user, err
+}
+
+func (r *userRepository) DeleteUser(id uint) error {
+	return r.db.Where("id_user = ?", id).Delete(&model.User{}).Error
 }

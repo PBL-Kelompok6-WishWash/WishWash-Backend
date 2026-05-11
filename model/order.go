@@ -3,32 +3,32 @@ package model
 import "time"
 
 type Order struct {
-	IDOrder             uint      `gorm:"primaryKey;autoIncrement;column:id_order"`
-	PaketLayananID      uint      `gorm:"not null;column:id_paket_layanan"`
-	PelangganID         uint      `gorm:"not null;column:id_pelanggan"` // Sesuai kesepakatan: id_pelanggan (bukan id_customer)
-	AlamatPengambilanID uint      `gorm:"not null;column:id_alamat_pengambilan"`
-	AlamatPenyerahanID  uint      `gorm:"not null;column:id_alamat_penyerahan"`
-	ParfumID            uint      `gorm:"not null;column:id_parfum"`
-	LayananID           uint      `gorm:"not null;column:id_layanan"`
-	KaryawanID          *uint     `gorm:"column:id_karyawan"` // Pake pointer (*) karena kurir mungkin belum di-assign saat order masuk
+	IDOrder             uint      `gorm:"primaryKey;autoIncrement;column:id_order" json:"id_order"`
+	PaketLayananID      uint      `gorm:"not null;column:id_paket_layanan" json:"id_paket_layanan"`
+	PelangganID         uint      `gorm:"not null;column:id_pelanggan" json:"id_pelanggan"` // Sesuai kesepakatan: id_pelanggan (bukan id_customer)
+	AlamatPengambilanID uint      `gorm:"not null;column:id_alamat_pengambilan" json:"id_alamat_pengambilan"`
+	AlamatPenyerahanID  uint      `gorm:"not null;column:id_alamat_penyerahan" json:"id_alamat_penyerahan"`
+	ParfumID            uint      `gorm:"not null;column:id_parfum" json:"id_parfum"`
+	LayananID           uint      `gorm:"not null;column:id_layanan" json:"id_layanan"`
+	KaryawanID          *uint     `gorm:"column:id_karyawan" json:"id_karyawan"` // Pake pointer (*) karena kurir mungkin belum di-assign saat order masuk
 
-	KeteranganLokasi string    `gorm:"type:text;column:keterangan_lokasi"`
-	TglPesanan       time.Time `gorm:"type:timestamp;column:tgl_pesanan;default:CURRENT_TIMESTAMP"`
-	JadwalPickup     time.Time `gorm:"type:timestamp;column:jadwal_pickup"`
-	TipeLogistik     string    `gorm:"type:varchar(50);column:tipe_logistik"`
-	HargaSaatIni     float64   `gorm:"type:numeric;column:harga_saat_ini"`
-	Kuantitas        float64   `gorm:"type:numeric;column:kuantitas"`
-	TotalBayar       float64   `gorm:"type:numeric;column:total_bayar"`
-	CatatanOrder     string    `gorm:"type:text;column:catatan_order"`
+	KeteranganLokasi string    `gorm:"type:text;column:keterangan_lokasi" json:"keterangan_lokasi"`
+	TglPesanan       time.Time `gorm:"type:timestamp;column:tgl_pesanan;default:CURRENT_TIMESTAMP" json:"tgl_pesanan"`
+	JadwalPickup     time.Time `gorm:"type:timestamp;column:jadwal_pickup" json:"jadwal_pickup"`
+	TipeLogistik     string    `gorm:"type:varchar(50);column:tipe_logistik" json:"tipe_logistik"`
+	HargaSaatIni     float64   `gorm:"type:numeric;column:harga_saat_ini" json:"harga_saat_ini"`
+	Kuantitas        float64   `gorm:"type:numeric;column:kuantitas" json:"kuantitas"`
+	TotalBayar       float64   `gorm:"type:numeric;column:total_bayar" json:"total_bayar"`
+	CatatanOrder     string    `gorm:"type:text;column:catatan_order" json:"catatan_order"`
 
 	// --- Relasi GORM ---
-	PaketLayanan      PaketLayanan `gorm:"foreignKey:PaketLayananID"`
-	Pelanggan         Pelanggan    `gorm:"foreignKey:PelangganID"`
-	AlamatPengambilan Alamat       `gorm:"foreignKey:AlamatPengambilanID"`
-	AlamatPenyerahan  Alamat       `gorm:"foreignKey:AlamatPenyerahanID"`
-	Parfum            Parfum       `gorm:"foreignKey:ParfumID"`
-	Layanan           Layanan      `gorm:"foreignKey:LayananID"`
-	Karyawan          Karyawan     `gorm:"foreignKey:KaryawanID"`
+	PaketLayanan      PaketLayanan `gorm:"foreignKey:PaketLayananID" json:"PaketLayanan"`
+	Pelanggan         Pelanggan    `gorm:"foreignKey:PelangganID" json:"Pelanggan"`
+	AlamatPengambilan Alamat       `gorm:"foreignKey:AlamatPengambilanID" json:"AlamatPengambilan"`
+	AlamatPenyerahan  Alamat       `gorm:"foreignKey:AlamatPenyerahanID" json:"AlamatPenyerahan"`
+	Parfum            Parfum       `gorm:"foreignKey:ParfumID" json:"Parfum"`
+	Layanan           Layanan      `gorm:"foreignKey:LayananID" json:"Layanan"`
+	Karyawan          Karyawan     `gorm:"foreignKey:KaryawanID" json:"Karyawan"`
 }
 
 func (Order) TableName() string {

@@ -1,11 +1,11 @@
 package model
 
 type Admin struct {
-	IDAdmin   uint   `gorm:"primaryKey;autoIncrement;column:id_admin"`
-	UserID    uint   `gorm:"not null;column:id_user"`
-	NamaAdmin string `gorm:"type:varchar(100);not null;column:nama_admin"`
+	IDAdmin   uint   `gorm:"primaryKey;autoIncrement;column:id_admin" json:"id_admin"`
+	UserID    uint   `gorm:"not null;column:id_user" json:"id_user"`
+	NamaAdmin string `gorm:"type:varchar(100);not null;column:nama_admin" json:"nama_admin"`
 
-	User User `gorm:"foreignKey:UserID;references:IDUser"`
+	User User `gorm:"foreignKey:UserID;references:IDUser" json:"User"`
 }
 
 func (Admin) TableName() string {

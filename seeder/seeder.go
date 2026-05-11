@@ -6,5 +6,5 @@ import "gorm.io/gorm"
 func RunAllSeeders(db *gorm.DB) {
 	seedRole(db)
 	seedAdmin(db)
-
+	SeedPelanggan(db)
 }

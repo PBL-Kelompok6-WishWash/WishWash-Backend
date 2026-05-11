@@ -26,7 +26,7 @@ func main() {
 
 	// 3. Pekerjakan "Pelayan" (Controller)
 	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo)
-	
+	pelangganController := controller.NewPelangganController(pelangganRepo, userRepo)
 	// 💡 TAMBAHAN BARU: Inisialisasi Profile Controller (Satu pelayan untuk semua role)
 	profileController := controller.NewProfileController(userRepo, adminRepo, karyawanRepo, pelangganRepo)
 
@@ -68,9 +68,15 @@ func main() {
 				})
 			})
 			
-			// 💡 TAMBAHAN BARU: Rute untuk Update Profile (Pakai PUT karena meng-update data yang sudah ada)
+			// Rute untuk Update Profile (Pakai PUT karena meng-update data yang sudah ada)
 			protected.PUT("/profile/update", profileController.UpdateProfile)
 			protected.PUT("/password/update", profileController.UpdatePassword)
+			
+			protected.GET("/pelanggan", pelangganController.GetAll)
+			protected.GET("/pelanggan/:id", pelangganController.GetByID)
+			protected.POST("/pelanggan", pelangganController.Create)
+			protected.PUT("/pelanggan/:id", pelangganController.Update)
+			protected.DELETE("/pelanggan/:id", pelangganController.Delete)
 		}
 	}
 
