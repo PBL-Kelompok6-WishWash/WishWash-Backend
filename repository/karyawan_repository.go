@@ -43,13 +43,13 @@ func (r *karyawanRepository) UpdateKaryawan(karyawan *model.Karyawan) error {
 
 func (r *karyawanRepository) FindAll() ([]model.Karyawan, error) {
 	var karyawans []model.Karyawan
-	err := r.db.Preload("User").Find(&karyawans).Error
+	err := r.db.Preload("User").Preload("User.Role").Find(&karyawans).Error
 	return karyawans, err
 }
 
 func (r *karyawanRepository) FindByID(idKaryawan uint) (*model.Karyawan, error) {
 	var karyawan model.Karyawan
-	err := r.db.Preload("User").First(&karyawan, idKaryawan).Error
+	err := r.db.Preload("User").Preload("User.Role").First(&karyawan, idKaryawan).Error
 	if err != nil {
 		return nil, err
 	}

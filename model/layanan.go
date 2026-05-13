@@ -6,6 +6,9 @@ type Layanan struct {
 	GambarLayanan  string  `gorm:"type:text;column:gambar_layanan" json:"gambar_layanan"`
 	JenisSatuan    string  `gorm:"type:varchar(50);column:jenis_satuan" json:"jenis_satuan"`
 	HargaPerSatuan float64 `gorm:"type:numeric;column:harga_per_satuan" json:"harga_per_satuan"`
+
+	// Relasi ke ReferensiStatusLayanan (1 Layanan -> N Status)
+	ReferensiStatus []ReferensiStatusLayanan `gorm:"foreignKey:LayananID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"referensi_status"`
 }
 
 func (Layanan) TableName() string {

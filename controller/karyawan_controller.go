@@ -127,7 +127,10 @@ func (ctrl *karyawanController) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Karyawan berhasil ditambahkan!", "data": karyawan})
+	// 4. Ambil data lengkap (untuk preload User & Role)
+	fullData, _ := ctrl.karyawanRepo.FindByID(karyawan.IDKaryawan)
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Karyawan berhasil ditambahkan!", "data": fullData})
 }
 
 func (ctrl *karyawanController) Update(c *gin.Context) {

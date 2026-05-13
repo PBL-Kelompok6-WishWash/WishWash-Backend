@@ -134,7 +134,10 @@ func (ctrl *pelangganController) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Pelanggan berhasil ditambahkan!", "data": pelanggan})
+	// 4. Ambil data lengkap (untuk preload User & Role) sebelum dikembalikan ke client
+	fullData, _ := ctrl.pelangganRepo.FindByID(pelanggan.IDPelanggan)
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Pelanggan berhasil ditambahkan!", "data": fullData})
 }
 
 func (ctrl *pelangganController) Update(c *gin.Context) {

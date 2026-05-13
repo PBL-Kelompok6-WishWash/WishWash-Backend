@@ -50,14 +50,14 @@ func (r *pelangganRepository) UpdatePelanggan(pelanggan *model.Pelanggan) error 
 
 func (r *pelangganRepository) FindAll() ([]model.Pelanggan, error) {
 	var pelanggans []model.Pelanggan
-	// Preload("User") agar username & email ikut terambil otomatis
-	err := r.db.Preload("User").Find(&pelanggans).Error
+	// Preload("User") dan "User.Role" agar data akun & perannya ikut terambil
+	err := r.db.Preload("User").Preload("User.Role").Find(&pelanggans).Error
 	return pelanggans, err
 }
 
 func (r *pelangganRepository) FindByID(idPelanggan uint) (*model.Pelanggan, error) {
 	var pelanggan model.Pelanggan
-	err := r.db.Preload("User").First(&pelanggan, idPelanggan).Error
+	err := r.db.Preload("User").Preload("User.Role").First(&pelanggan, idPelanggan).Error
 	if err != nil {
 		return nil, err
 	}

@@ -24,12 +24,16 @@ func main() {
 	pelangganRepo := repository.NewPelangganRepository(config.DB)
 	karyawanRepo := repository.NewKaryawanRepository(config.DB)
 	adminRepo := repository.NewAdminRepository(config.DB)
+	layananRepo := repository.NewLayananRepository(config.DB)
+	paketRepo := repository.NewPaketLayananRepository(config.DB)
 
 	// 3. Pekerjakan "Pelayan" (Controller)
 	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo)
 	pelangganController := controller.NewPelangganController(pelangganRepo, userRepo)
 	karyawanController := controller.NewKaryawanController(karyawanRepo, userRepo)
 	profileController := controller.NewProfileController(userRepo, adminRepo, karyawanRepo, pelangganRepo)
+	layananController := controller.NewLayananController(layananRepo)
+	paketController := controller.NewPaketLayananController(paketRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -69,7 +73,19 @@ func main() {
         adminRoutes.PUT("/karyawan/:id", karyawanController.Update)
         adminRoutes.DELETE("/karyawan/:id", karyawanController.Delete)
         
-        // Nanti tambah rute layanan, parfum, promo di sini...
+        // Rute Layanan
+        adminRoutes.GET("/layanan", layananController.GetAll)
+        adminRoutes.GET("/layanan/:id", layananController.GetByID)
+        adminRoutes.POST("/layanan", layananController.Create)
+        adminRoutes.PUT("/layanan/:id", layananController.Update)
+        adminRoutes.DELETE("/layanan/:id", layananController.Delete)
+
+        // Rute Paket Layanan
+        adminRoutes.GET("/paket-layanan", paketController.GetAll)
+        adminRoutes.GET("/paket-layanan/:id", paketController.GetByID)
+        adminRoutes.POST("/paket-layanan", paketController.Create)
+        adminRoutes.PUT("/paket-layanan/:id", paketController.Update)
+        adminRoutes.DELETE("/paket-layanan/:id", paketController.Delete)
     }
 
 	// 6. Buka restoran di port 8080
