@@ -12,6 +12,7 @@ type LayananRepository interface {
 	Update(layanan *model.Layanan) error
 	Delete(id uint) error
 	UpdateStatusLayanan(layananID uint, statuses []model.ReferensiStatusLayanan) error
+	UpdatePaketLayanan(layananID uint, pakets []model.PaketLayanan) error
 }
 
 type layananRepository struct {
@@ -24,10 +25,10 @@ func NewLayananRepository(db *gorm.DB) LayananRepository {
 
 func (r *layananRepository) FindAll() ([]model.Layanan, error) {
 	var layanans []model.Layanan
-	// Preload referensi status, order by urutan_tahap
+	// Preload referensi status dan paket layanan
 	err := r.db.Preload("ReferensiStatus", func(db *gorm.DB) *gorm.DB {
 		return db.Order("urutan_tahap ASC")
-	}).Find(&layanans).Error
+	}).Preload("PaketLayanan").Find(&layanans).Error
 	return layanans, err
 }
 
@@ -35,7 +36,7 @@ func (r *layananRepository) FindByID(id uint) (*model.Layanan, error) {
 	var layanan model.Layanan
 	err := r.db.Preload("ReferensiStatus", func(db *gorm.DB) *gorm.DB {
 		return db.Order("urutan_tahap ASC")
-	}).First(&layanan, id).Error
+	}).Preload("PaketLayanan").First(&layanan, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +70,26 @@ func (r *layananRepository) UpdateStatusLayanan(layananID uint, statuses []model
 	})
 }
 
+func (r *layananRepository) UpdatePaketLayanan(layananID uint, pakets []model.PaketLayanan) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Delete all existing pakets for this Layanan
+		if err := tx.Where("id_layanan = ?", layananID).Delete(&model.PaketLayanan{}).Error; err != nil {
+			return err
+		}
+
+		// 2. Insert the new ones if there are any
+		if len(pakets) > 0 {
+			if err := tx.Create(&pakets).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (r *layananRepository) Delete(id uint) error {
-	// Explicitly delete child statuses first to avoid FK constraint error if DB schema wasn't dropped
+	// Explicitly delete child tables first to avoid FK constraint error
 	r.db.Where("id_layanan = ?", id).Delete(&model.ReferensiStatusLayanan{})
+	r.db.Where("id_layanan = ?", id).Delete(&model.PaketLayanan{})
 	return r.db.Delete(&model.Layanan{}, id).Error
 }

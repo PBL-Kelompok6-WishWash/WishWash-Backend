@@ -25,7 +25,6 @@ func main() {
 	karyawanRepo := repository.NewKaryawanRepository(config.DB)
 	adminRepo := repository.NewAdminRepository(config.DB)
 	layananRepo := repository.NewLayananRepository(config.DB)
-	paketRepo := repository.NewPaketLayananRepository(config.DB)
 
 	// 3. Pekerjakan "Pelayan" (Controller)
 	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo)
@@ -33,7 +32,6 @@ func main() {
 	karyawanController := controller.NewKaryawanController(karyawanRepo, userRepo)
 	profileController := controller.NewProfileController(userRepo, adminRepo, karyawanRepo, pelangganRepo)
 	layananController := controller.NewLayananController(layananRepo)
-	paketController := controller.NewPaketLayananController(paketRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -79,13 +77,6 @@ func main() {
         adminRoutes.POST("/layanan", layananController.Create)
         adminRoutes.PUT("/layanan/:id", layananController.Update)
         adminRoutes.DELETE("/layanan/:id", layananController.Delete)
-
-        // Rute Paket Layanan
-        adminRoutes.GET("/paket-layanan", paketController.GetAll)
-        adminRoutes.GET("/paket-layanan/:id", paketController.GetByID)
-        adminRoutes.POST("/paket-layanan", paketController.Create)
-        adminRoutes.PUT("/paket-layanan/:id", paketController.Update)
-        adminRoutes.DELETE("/paket-layanan/:id", paketController.Delete)
     }
 
 	// 6. Buka restoran di port 8080

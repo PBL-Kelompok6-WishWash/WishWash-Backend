@@ -4,7 +4,7 @@ import "time"
 
 type Order struct {
 	IDOrder             uint      `gorm:"primaryKey;autoIncrement;column:id_order" json:"id_order"`
-	PaketLayananID      uint      `gorm:"not null;column:id_paket_layanan" json:"id_paket_layanan"`
+	PaketLayananID      *uint     `gorm:"column:id_paket_layanan" json:"id_paket_layanan"` // Bisa null jika layanan tidak punya paket
 	PelangganID         uint      `gorm:"not null;column:id_pelanggan" json:"id_pelanggan"` // Sesuai kesepakatan: id_pelanggan (bukan id_customer)
 	AlamatPengambilanID uint      `gorm:"not null;column:id_alamat_pengambilan" json:"id_alamat_pengambilan"`
 	AlamatPenyerahanID  uint      `gorm:"not null;column:id_alamat_penyerahan" json:"id_alamat_penyerahan"`

@@ -11,12 +11,19 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
+type PaketLayananInput struct {
+	NamaPaket     string  `json:"nama_paket" binding:"required"`
+	DurasiJam     int     `json:"durasi_jam"`
+	BiayaTambahan float64 `json:"biaya_tambahan"`
+}
+
 type LayananInput struct {
-	NamaLayanan     string   `json:"nama_layanan" binding:"required"`
-	GambarLayanan   string   `json:"gambar_layanan"`
-	JenisSatuan     string   `json:"jenis_satuan" binding:"required"`
-	HargaPerSatuan  float64  `json:"harga_per_satuan" binding:"required"`
-	ReferensiStatus []string `json:"referensi_status" binding:"required,min=1"` // Array of status names in sequence
+	NamaLayanan     string              `json:"nama_layanan" binding:"required"`
+	GambarLayanan   string              `json:"gambar_layanan"`
+	JenisSatuan     string              `json:"jenis_satuan" binding:"required"`
+	HargaPerSatuan  float64             `json:"harga_per_satuan" binding:"required"`
+	ReferensiStatus []string            `json:"referensi_status" binding:"required,min=1"` // Array of status names in sequence
+	PaketLayanan    []PaketLayananInput `json:"paket_layanan"`                           // Daftar paket (opsional)
 }
 
 type LayananController interface {
@@ -103,6 +110,16 @@ func (ctrl *layananController) Create(c *gin.Context) {
 	}
 	layanan.ReferensiStatus = statuses
 
+	var pakets []model.PaketLayanan
+	for _, pkt := range input.PaketLayanan {
+		pakets = append(pakets, model.PaketLayanan{
+			NamaPaket:     strings.TrimSpace(pkt.NamaPaket),
+			DurasiJam:     pkt.DurasiJam,
+			BiayaTambahan: pkt.BiayaTambahan,
+		})
+	}
+	layanan.PaketLayanan = pakets
+
 	// Simpan
 	if err := ctrl.layananRepo.Create(&layanan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan layanan"})
@@ -153,6 +170,22 @@ func (ctrl *layananController) Update(c *gin.Context) {
 
 	if err := ctrl.layananRepo.UpdateStatusLayanan(id, statuses); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate referensi status layanan"})
+		return
+	}
+
+	// Update data paket
+	var pakets []model.PaketLayanan
+	for _, pkt := range input.PaketLayanan {
+		pakets = append(pakets, model.PaketLayanan{
+			LayananID:     id,
+			NamaPaket:     strings.TrimSpace(pkt.NamaPaket),
+			DurasiJam:     pkt.DurasiJam,
+			BiayaTambahan: pkt.BiayaTambahan,
+		})
+	}
+
+	if err := ctrl.layananRepo.UpdatePaketLayanan(id, pakets); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate paket layanan"})
 		return
 	}
 

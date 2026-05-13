@@ -9,6 +9,9 @@ type Layanan struct {
 
 	// Relasi ke ReferensiStatusLayanan (1 Layanan -> N Status)
 	ReferensiStatus []ReferensiStatusLayanan `gorm:"foreignKey:LayananID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"referensi_status"`
+
+	// Relasi ke PaketLayanan (1 Layanan -> N PaketLayanan)
+	PaketLayanan []PaketLayanan `gorm:"foreignKey:LayananID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"paket_layanan"`
 }
 
 func (Layanan) TableName() string {
