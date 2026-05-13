@@ -8,4 +8,6 @@ func RunAllSeeders(db *gorm.DB) {
 	seedAdmin(db)
 	SeedKaryawan(db)
 	SeedPelanggan(db)
+	SeedLayanan(db)
+	SeedParfum(db)
 }
