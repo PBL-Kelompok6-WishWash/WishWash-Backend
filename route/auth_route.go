@@ -1,14 +1,15 @@
-package route // <-- Pastikan baris 1 adalah ini
+package route 
 
 import (
     "github.com/PBL-Kelompok6-WishWash/backend/controller"
     "github.com/gin-gonic/gin"
 )
 
-func SetupAuthRoutes(router *gin.Engine, authController controller.AuthController) {
-    api := router.Group("/api/v1")
+func SetupAuthRoutes(apiGroup *gin.RouterGroup, authController controller.AuthController) {
+    // Bikin sub-grup /auth
+    auth := apiGroup.Group("/auth")
     {
-        api.POST("/register", authController.Register)
-        api.POST("/login", authController.Login)
+        auth.POST("/register", authController.Register)
+        auth.POST("/login", authController.Login)
     }
 }

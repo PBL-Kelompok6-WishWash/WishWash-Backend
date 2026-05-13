@@ -67,3 +67,75 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		}
 	}
 }
+
+// AdminOnly adalah middleware untuk memastikan hanya pengguna dengan role Admin (RoleID = 1) yang bisa mengakses rute.
+func AdminOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Ambil data id_role yang sudah disimpan oleh JWTAuthMiddleware
+		roleData, exists := c.Get("id_role")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Data role tidak ditemukan di sesi ini"})
+			c.Abort()
+			return
+		}
+
+		// JWT MapClaims selalu mengubah angka menjadi float64 secara default
+		roleID := int(roleData.(float64))
+
+		// Cek apakah dia Admin (1)
+		if roleID != 1 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Akses Ditolak! 🛑 Rute ini khusus untuk Admin."})
+			c.Abort()
+			return
+		}
+
+		// Kalau lolos, lanjut ke tujuan
+		c.Next()
+	}
+}
+
+// KaryawanOnly adalah middleware untuk memastikan hanya Karyawan (RoleID = 2) atau Admin (RoleID = 1) yang bisa mengakses.
+func KaryawanOrAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleData, exists := c.Get("id_role")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Data role tidak ditemukan di sesi ini"})
+			c.Abort()
+			return
+		}
+
+		roleID := int(roleData.(float64))
+
+		// Karyawan (2) atau Admin (1) boleh masuk (Misal untuk update status pesanan)
+		if roleID != 1 && roleID != 2 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Akses Ditolak! 🛑 Rute ini khusus untuk Admin atau Karyawan."})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// PelangganOnly adalah middleware untuk memastikan hanya Pelanggan (RoleID = 3) yang bisa mengakses.
+func PelangganOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleData, exists := c.Get("id_role")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Data role tidak ditemukan di sesi ini"})
+			c.Abort()
+			return
+		}
+
+		roleID := int(roleData.(float64))
+
+		// Cek apakah dia Pelanggan (3)
+		if roleID != 3 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Akses Ditolak! 🛑 Rute ini khusus untuk Pelanggan."})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}

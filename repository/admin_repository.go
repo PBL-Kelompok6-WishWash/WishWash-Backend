@@ -21,7 +21,7 @@ func NewAdminRepository(db *gorm.DB) AdminRepository {
 func (r *adminRepository) FindByUserID(userID uint) (*model.Admin, error) {
 	var admin model.Admin
 	// Mencari di tabel admin berdasarkan id_user
-	err := r.db.Where("id_user = ?", userID).First(&admin).Error
+	err := r.db.Preload("User").Preload("User.Role").Where("id_user = ?", userID).First(&admin).Error
 	return &admin, err
 }
 

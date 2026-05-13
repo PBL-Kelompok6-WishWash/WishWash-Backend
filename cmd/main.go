@@ -2,12 +2,13 @@ package main
 
 import (
 	"log"
-	"net/http"
+	// "net/http"
 
 	"github.com/PBL-Kelompok6-WishWash/backend/config"
 	"github.com/PBL-Kelompok6-WishWash/backend/controller"
 	"github.com/PBL-Kelompok6-WishWash/backend/middleware"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
+	"github.com/PBL-Kelompok6-WishWash/backend/route"
 	"github.com/PBL-Kelompok6-WishWash/backend/seeder"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -27,7 +28,7 @@ func main() {
 	// 3. Pekerjakan "Pelayan" (Controller)
 	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo)
 	pelangganController := controller.NewPelangganController(pelangganRepo, userRepo)
-	// 💡 TAMBAHAN BARU: Inisialisasi Profile Controller (Satu pelayan untuk semua role)
+	karyawanController := controller.NewKaryawanController(karyawanRepo, userRepo)
 	profileController := controller.NewProfileController(userRepo, adminRepo, karyawanRepo, pelangganRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
@@ -41,44 +42,35 @@ func main() {
 
 	// 5. Atur Papan Petunjuk Jalan (Routing API)
 	api := r.Group("/api/v1")
-	{
-		// Public routes: No authentication required
-		auth := api.Group("/auth")
-		{
-			auth.POST("/register", authController.Register)
-			auth.POST("/login", authController.Login)
-		}
 
-		// Protected routes: Requires valid JWT token
-		protected := api.Group("/protected")
-		protected.Use(middleware.JWTAuthMiddleware()) 
-		{
-			// Test endpoint
-			protected.GET("/profil-saya", func(c *gin.Context) {
-				userID, _ := c.Get("id_user")
-				username, _ := c.Get("username")
-				
-				c.JSON(http.StatusOK, gin.H{
-					"status":  "success",
-					"message": "Autentikasi berhasil, akses ke rute terproteksi diizinkan",
-					"data": gin.H{
-						"user_id":  userID,
-						"username": username,
-					},
-				})
-			})
-			
-			// Rute untuk Update Profile (Pakai PUT karena meng-update data yang sudah ada)
-			protected.PUT("/profile/update", profileController.UpdateProfile)
-			protected.PUT("/password/update", profileController.UpdatePassword)
-			
-			protected.GET("/pelanggan", pelangganController.GetAll)
-			protected.GET("/pelanggan/:id", pelangganController.GetByID)
-			protected.POST("/pelanggan", pelangganController.Create)
-			protected.PUT("/pelanggan/:id", pelangganController.Update)
-			protected.DELETE("/pelanggan/:id", pelangganController.Delete)
-		}
-	}
+	route.SetupAuthRoutes(api, authController)
+
+	profileRoutes := api.Group("/profile")
+    profileRoutes.Use(middleware.JWTAuthMiddleware()) // Satpam 1 (Cek Token)
+    {
+        profileRoutes.GET("", profileController.GetProfile)
+        profileRoutes.PUT("/update", profileController.UpdateProfile)
+        profileRoutes.PUT("/password", profileController.UpdatePassword)
+    }
+
+    // B. Rute Khusus Admin (Hanya Role 1 yang bisa akses)
+    adminRoutes := api.Group("/admin")
+    adminRoutes.Use(middleware.JWTAuthMiddleware(), middleware.AdminOnly()) // Satpam 1 & 2
+    {
+        adminRoutes.GET("/pelanggan", pelangganController.GetAll)
+        adminRoutes.GET("/pelanggan/:id", pelangganController.GetByID)
+        adminRoutes.POST("/pelanggan", pelangganController.Create)
+        adminRoutes.PUT("/pelanggan/:id", pelangganController.Update)
+        adminRoutes.DELETE("/pelanggan/:id", pelangganController.Delete)
+        
+        adminRoutes.GET("/karyawan", karyawanController.GetAll)
+        adminRoutes.GET("/karyawan/:id", karyawanController.GetByID)
+        adminRoutes.POST("/karyawan", karyawanController.Create)
+        adminRoutes.PUT("/karyawan/:id", karyawanController.Update)
+        adminRoutes.DELETE("/karyawan/:id", karyawanController.Delete)
+        
+        // Nanti tambah rute layanan, parfum, promo di sini...
+    }
 
 	// 6. Buka restoran di port 8080
 	log.Println("🚀 Server WishWash API berjalan di http://localhost:8080")

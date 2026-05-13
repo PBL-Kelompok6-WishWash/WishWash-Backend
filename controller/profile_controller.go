@@ -17,6 +17,7 @@ type UpdateProfileInput struct {
 }
 
 type ProfileController interface {
+	GetProfile(c *gin.Context)
 	UpdateProfile(c *gin.Context)
 	UpdatePassword(c *gin.Context)
 }
@@ -40,6 +41,51 @@ func NewProfileController(
 	pRepo repository.PelangganRepository,
 ) ProfileController {
 	return &profileController{uRepo, aRepo, kRepo, pRepo}
+}
+
+func (ctrl *profileController) GetProfile(c *gin.Context) {
+	// 1. Ambil ID User & Role ID dari Token JWT
+	userIDFloat, exists := c.Get("id_user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Akses ditolak."})
+		return
+	}
+	userID := uint(userIDFloat.(float64))
+
+	roleIDFloat, existsRole := c.Get("id_role")
+	if !existsRole {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Akses ditolak."})
+		return
+	}
+	roleID := int(roleIDFloat.(float64))
+
+	// 2. Siapkan variabel penampung data
+	var profileData interface{}
+	var err error
+
+	// 3. Tarik data dari Database sesuai Role-nya
+	switch roleID {
+	case 1:
+		profileData, err = ctrl.adminRepo.FindByUserID(userID)
+	case 2:
+		profileData, err = ctrl.karyawanRepo.FindByUserID(userID)
+	case 3:
+		profileData, err = ctrl.pelangganRepo.FindByUserID(userID)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role tidak dikenali sistem."})
+		return
+	}
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data profil tidak ditemukan di database."})
+		return
+	}
+
+	// 4. Kembalikan data utuh
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Data Profil Berhasil Diambil",
+		"data":    profileData,
+	})
 }
 
 func (ctrl *profileController) UpdateProfile(c *gin.Context) {

@@ -37,7 +37,7 @@ func (r *pelangganRepository) CreatePelanggan(pelanggan *model.Pelanggan) error 
 
 func (r *pelangganRepository) FindByUserID(userID uint) (*model.Pelanggan, error) {
 	var pelanggan model.Pelanggan
-	err := r.db.Where("id_user = ?", userID).First(&pelanggan).Error
+	err := r.db.Preload("User").Preload("User.Role").Where("id_user = ?", userID).First(&pelanggan).Error
 	if err != nil {
 		return nil, err
 	}
