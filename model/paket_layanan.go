@@ -6,8 +6,6 @@ type PaketLayanan struct {
 	NamaPaket      string  `gorm:"type:varchar(100);not null;column:nama_paket" json:"nama_paket"`
 	DurasiJam      int     `gorm:"column:durasi_jam" json:"durasi_jam"`
 	BiayaTambahan  float64 `gorm:"type:numeric;column:biaya_tambahan" json:"biaya_tambahan"`
-
-	Layanan Layanan `gorm:"foreignKey:LayananID" json:"Layanan"`
 }
 
 func (PaketLayanan) TableName() string {

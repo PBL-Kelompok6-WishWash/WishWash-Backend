@@ -14,6 +14,7 @@ type Promo struct {
 	TglMulai         time.Time `gorm:"type:date;column:tgl_mulai" json:"tgl_mulai"`
 	TglBerakhir      time.Time `gorm:"type:date;column:tgl_berakhir" json:"tgl_berakhir"`
 	StatusPromo      string    `gorm:"type:varchar(50);column:status_promo" json:"status_promo"`
+	GambarPromo      string    `gorm:"type:text;column:gambar_promo" json:"gambar_promo"`
 }
 
 func (Promo) TableName() string {
