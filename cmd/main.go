@@ -36,6 +36,7 @@ func main() {
 	layananController := controller.NewLayananController(layananRepo)
 	parfumController := controller.NewParfumController(parfumRepo)
 	promoController := controller.NewPromoController(promoRepo)
+	metodePembayaranController := controller.NewMetodePembayaranController(config.DB)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -95,6 +96,13 @@ func main() {
         adminRoutes.POST("/promo", promoController.Create)
         adminRoutes.PUT("/promo/:id", promoController.Update)
         adminRoutes.DELETE("/promo/:id", promoController.Delete)
+
+        // Rute Metode Pembayaran
+        adminRoutes.GET("/metode-pembayaran", metodePembayaranController.GetAll)
+        adminRoutes.GET("/metode-pembayaran/:id", metodePembayaranController.GetByID)
+        adminRoutes.POST("/metode-pembayaran", metodePembayaranController.Create)
+        adminRoutes.PUT("/metode-pembayaran/:id", metodePembayaranController.Update)
+        adminRoutes.DELETE("/metode-pembayaran/:id", metodePembayaranController.Delete)
     }
 
 	// 6. Buka restoran di port 8080

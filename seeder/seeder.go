@@ -11,4 +11,5 @@ func RunAllSeeders(db *gorm.DB) {
 	SeedLayanan(db)
 	SeedParfum(db)
 	SeedPromo(db)
+	SeedMetodePembayaran(db)
 }

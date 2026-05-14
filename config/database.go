@@ -45,6 +45,7 @@ func ConnectDatabase() {
 		&model.PaketLayanan{},
 		&model.Parfum{},
 		&model.Promo{},
+		&model.MetodePembayaran{},
 
 		// --- Modul Pendukung & Konfigurasi ---
 		&model.Alamat{},
