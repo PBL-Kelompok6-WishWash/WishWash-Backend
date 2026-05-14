@@ -24,6 +24,7 @@ type LayananInput struct {
 	HargaPerSatuan  float64             `json:"harga_per_satuan" binding:"required"`
 	ReferensiStatus []string            `json:"referensi_status" binding:"required,min=1"` // Array of status names in sequence
 	PaketLayanan    []PaketLayananInput `json:"paket_layanan"`                           // Daftar paket (opsional)
+	StatusLayanan   string              `json:"status_layanan"`
 }
 
 type LayananController interface {
@@ -98,6 +99,7 @@ func (ctrl *layananController) Create(c *gin.Context) {
 		GambarLayanan:  input.GambarLayanan,
 		JenisSatuan:    input.JenisSatuan,
 		HargaPerSatuan: input.HargaPerSatuan,
+		StatusLayanan:  input.StatusLayanan,
 	}
 
 	// Konversi array string menjadi array struct ReferensiStatusLayanan
@@ -152,6 +154,7 @@ func (ctrl *layananController) Update(c *gin.Context) {
 	layanan.GambarLayanan = input.GambarLayanan
 	layanan.JenisSatuan = input.JenisSatuan
 	layanan.HargaPerSatuan = input.HargaPerSatuan
+	layanan.StatusLayanan = input.StatusLayanan
 
 	if err := ctrl.layananRepo.Update(layanan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate layanan"})

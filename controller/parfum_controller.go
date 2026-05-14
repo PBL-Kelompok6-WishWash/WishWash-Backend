@@ -54,6 +54,7 @@ func (c *ParfumController) Create(ctx *gin.Context) {
 	var input struct {
 		NamaParfum string `json:"nama_parfum" binding:"required"`
 		Keterangan string `json:"keterangan"`
+		Status     string `json:"status_parfum"`
 	}
 
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -62,8 +63,9 @@ func (c *ParfumController) Create(ctx *gin.Context) {
 	}
 
 	parfum := model.Parfum{
-		NamaParfum: input.NamaParfum,
-		Keterangan: input.Keterangan,
+		NamaParfum:   input.NamaParfum,
+		Keterangan:   input.Keterangan,
+		StatusParfum: input.Status,
 	}
 
 	newParfum, err := c.parfumRepo.Create(parfum)
@@ -89,6 +91,7 @@ func (c *ParfumController) Update(ctx *gin.Context) {
 	var input struct {
 		NamaParfum string `json:"nama_parfum" binding:"required"`
 		Keterangan string `json:"keterangan"`
+		Status     string `json:"status_parfum"`
 	}
 
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -104,6 +107,7 @@ func (c *ParfumController) Update(ctx *gin.Context) {
 
 	parfum.NamaParfum = input.NamaParfum
 	parfum.Keterangan = input.Keterangan
+	parfum.StatusParfum = input.Status
 
 	updatedParfum, err := c.parfumRepo.Update(parfum)
 	if err != nil {

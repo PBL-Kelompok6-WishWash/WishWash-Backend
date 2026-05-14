@@ -34,6 +34,7 @@ func SeedLayanan(db *gorm.DB) {
 				{NamaPaket: "Express", DurasiJam: 24, BiayaTambahan: 5000},
 				{NamaPaket: "Kilat", DurasiJam: 6, BiayaTambahan: 10000},
 			},
+			StatusLayanan: "Aktif",
 		},
 		{
 			NamaLayanan:    "Cuci Kering",
@@ -51,6 +52,7 @@ func SeedLayanan(db *gorm.DB) {
 				{NamaPaket: "Express", DurasiJam: 24, BiayaTambahan: 3000},
 				{NamaPaket: "Kilat", DurasiJam: 6, BiayaTambahan: 7000},
 			},
+			StatusLayanan: "Aktif",
 		},
 		{
 			NamaLayanan:    "Cuci & Setrika",
@@ -69,6 +71,7 @@ func SeedLayanan(db *gorm.DB) {
 				{NamaPaket: "Express", DurasiJam: 24, BiayaTambahan: 6000},
 				{NamaPaket: "Kilat", DurasiJam: 6, BiayaTambahan: 12000},
 			},
+			StatusLayanan: "Aktif",
 		},
 		{
 			NamaLayanan:    "Setrika",
@@ -85,6 +88,7 @@ func SeedLayanan(db *gorm.DB) {
 				{NamaPaket: "Express", DurasiJam: 12, BiayaTambahan: 4000},
 				{NamaPaket: "Kilat", DurasiJam: 4, BiayaTambahan: 8000},
 			},
+			StatusLayanan: "Aktif",
 		},
 	}
 

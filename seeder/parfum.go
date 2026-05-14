@@ -17,12 +17,12 @@ func SeedParfum(db *gorm.DB) {
 	}
 
 	parfums := []model.Parfum{
-		{NamaParfum: "Malaikat Subuh", Keterangan: "Aroma lembut dan menenangkan, cocok untuk pakaian sehari-hari"},
-		{NamaParfum: "Lavender Bliss", Keterangan: "Wangi bunga lavender asli yang memberikan ketenangan"},
-		{NamaParfum: "Citrus Burst", Keterangan: "Aroma jeruk segar yang memberikan energi dan kesegaran"},
-		{NamaParfum: "Fresh Cotton", Keterangan: "Wangi kapas bersih khas cucian baru yang tahan lama"},
-		{NamaParfum: "Ocean Breeze", Keterangan: "Aroma laut segar yang ringan dan menyegarkan"},
-		{NamaParfum: "Rose Garden", Keterangan: "Wewangian mawar elegan untuk pakaian formal dan spesial"},
+		{NamaParfum: "Malaikat Subuh", Keterangan: "Aroma lembut dan menenangkan", StatusParfum: "Tersedia"},
+		{NamaParfum: "Lavender Bliss", Keterangan: "Wangi bunga lavender asli", StatusParfum: "Tersedia"},
+		{NamaParfum: "Citrus Burst", Keterangan: "Aroma jeruk segar", StatusParfum: "Tidak Tersedia"},
+		{NamaParfum: "Fresh Cotton", Keterangan: "Wangi kapas bersih", StatusParfum: "Tersedia"},
+		{NamaParfum: "Ocean Breeze", Keterangan: "Aroma laut segar yang ringan dan menyegarkan", StatusParfum: "Tersedia"},
+		{NamaParfum: "Rose Garden", Keterangan: "Wewangian mawar elegan", StatusParfum: "Tersedia"},
 	}
 
 	for _, p := range parfums {
