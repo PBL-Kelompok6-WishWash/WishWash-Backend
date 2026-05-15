@@ -133,30 +133,23 @@ func (ctrl *karyawanController) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Karyawan berhasil ditambahkan!", "data": fullData})
 }
 
+type UpdateKaryawanInput struct {
+	Username           *string `json:"username"`
+	Email              *string `json:"email"`
+	Password           *string `json:"password"`
+	NamaKaryawan       *string `json:"nama_karyawan"`
+	NoTelp             *string `json:"no_telp"`
+	FotoKaryawan       *string `json:"foto_karyawan"`
+	PlatNomor          *string `json:"plat_nomor"`
+	JenisKendaraan     *string `json:"jenis_kendaraan"`
+	StatusKetersediaan *string `json:"status_ketersediaan"`
+}
+
 func (ctrl *karyawanController) Update(c *gin.Context) {
 	id := parseKaryawanID(c.Param("id"))
-	var input KaryawanInput
+	var input UpdateKaryawanInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		var errorMsgs []string
-		if validationErrs, ok := err.(validator.ValidationErrors); ok {
-			for _, fieldErr := range validationErrs {
-				switch fieldErr.Field() {
-				case "Username":
-					errorMsgs = append(errorMsgs, "Username tidak boleh kosong")
-				case "Email":
-					if fieldErr.Tag() == "required" {
-						errorMsgs = append(errorMsgs, "Email tidak boleh kosong")
-					} else if fieldErr.Tag() == "email" {
-						errorMsgs = append(errorMsgs, "Format email tidak valid")
-					}
-				case "NamaKaryawan":
-					errorMsgs = append(errorMsgs, "Nama Karyawan tidak boleh kosong")
-				}
-			}
-			c.JSON(http.StatusBadRequest, gin.H{"error": strings.Join(errorMsgs, ", ")})
-			return
-		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data tidak valid"})
 		return
 	}
@@ -167,32 +160,56 @@ func (ctrl *karyawanController) Update(c *gin.Context) {
 		return
 	}
 
-	karyawan.User.Username = input.Username
-	karyawan.User.Email = input.Email
-
-	if input.Password != "" {
-		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	// Update User
+	userUpdated := false
+	if input.Username != nil {
+		karyawan.User.Username = *input.Username
+		userUpdated = true
+	}
+	if input.Email != nil {
+		karyawan.User.Email = *input.Email
+		userUpdated = true
+	}
+	if input.Password != nil && *input.Password != "" {
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(*input.Password), bcrypt.DefaultCost)
 		karyawan.User.Password = string(hashedPassword)
+		userUpdated = true
 	}
 
-	if err := ctrl.userRepo.UpdateUser(&karyawan.User); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate akun user"})
-		return
+	if userUpdated {
+		if err := ctrl.userRepo.UpdateUser(&karyawan.User); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate akun user"})
+			return
+		}
 	}
 
-	karyawan.NamaKaryawan = input.NamaKaryawan
-	karyawan.NoTelp = input.NoTelp
-	karyawan.FotoKaryawan = input.FotoKaryawan
-	karyawan.PlatNomor = input.PlatNomor
-	karyawan.JenisKendaraan = input.JenisKendaraan
-	karyawan.StatusKetersediaan = input.StatusKetersediaan
+	// Update Karyawan
+	if input.NamaKaryawan != nil {
+		karyawan.NamaKaryawan = *input.NamaKaryawan
+	}
+	if input.NoTelp != nil {
+		karyawan.NoTelp = *input.NoTelp
+	}
+	if input.FotoKaryawan != nil {
+		karyawan.FotoKaryawan = *input.FotoKaryawan
+	}
+	if input.PlatNomor != nil {
+		karyawan.PlatNomor = *input.PlatNomor
+	}
+	if input.JenisKendaraan != nil {
+		karyawan.JenisKendaraan = *input.JenisKendaraan
+	}
+	if input.StatusKetersediaan != nil {
+		karyawan.StatusKetersediaan = *input.StatusKetersediaan
+	}
 
 	if err := ctrl.karyawanRepo.Update(karyawan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate profil karyawan"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Data karyawan berhasil diperbarui!"})
+	fullData, _ := ctrl.karyawanRepo.FindByID(id)
+	c.JSON(http.StatusOK, gin.H{"message": "Data karyawan berhasil diperbarui!", "data": fullData})
 }
 
 func (ctrl *karyawanController) Delete(c *gin.Context) {

@@ -2,7 +2,7 @@ package controller
 
 import (
 	"net/http"
-	"strconv"
+	// "strconv"
 
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/gin-gonic/gin"
@@ -62,16 +62,13 @@ func (ctrl *MetodePembayaranController) Update(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindJSON(&mp); err != nil {
+	var input map[string]interface{}
+	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Ensure ID stays the same
-	parsedID, _ := strconv.Atoi(id)
-	mp.IDMetodePembayaran = uint(parsedID)
-
-	if err := ctrl.DB.Save(&mp).Error; err != nil {
+	if err := ctrl.DB.Model(&mp).Updates(input).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui metode pembayaran"})
 		return
 	}

@@ -133,9 +133,19 @@ func (ctrl *layananController) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Layanan berhasil ditambahkan!", "data": fullData})
 }
 
+type UpdateLayananInput struct {
+	NamaLayanan     *string              `json:"nama_layanan"`
+	GambarLayanan   *string              `json:"gambar_layanan"`
+	JenisSatuan     *string              `json:"jenis_satuan"`
+	HargaPerSatuan  *float64             `json:"harga_per_satuan"`
+	ReferensiStatus *[]string            `json:"referensi_status"`
+	PaketLayanan    *[]PaketLayananInput `json:"paket_layanan"`
+	StatusLayanan   *string              `json:"status_layanan"`
+}
+
 func (ctrl *layananController) Update(c *gin.Context) {
 	id := parseLayananID(c.Param("id"))
-	var input LayananInput
+	var input UpdateLayananInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data tidak valid"})
@@ -150,46 +160,58 @@ func (ctrl *layananController) Update(c *gin.Context) {
 	}
 
 	// Update data utama
-	layanan.NamaLayanan = input.NamaLayanan
-	layanan.GambarLayanan = input.GambarLayanan
-	layanan.JenisSatuan = input.JenisSatuan
-	layanan.HargaPerSatuan = input.HargaPerSatuan
-	layanan.StatusLayanan = input.StatusLayanan
+	if input.NamaLayanan != nil {
+		layanan.NamaLayanan = *input.NamaLayanan
+	}
+	if input.GambarLayanan != nil {
+		layanan.GambarLayanan = *input.GambarLayanan
+	}
+	if input.JenisSatuan != nil {
+		layanan.JenisSatuan = *input.JenisSatuan
+	}
+	if input.HargaPerSatuan != nil {
+		layanan.HargaPerSatuan = *input.HargaPerSatuan
+	}
+	if input.StatusLayanan != nil {
+		layanan.StatusLayanan = *input.StatusLayanan
+	}
 
 	if err := ctrl.layananRepo.Update(layanan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate layanan"})
 		return
 	}
 
-	// Update data status
-	var statuses []model.ReferensiStatusLayanan
-	for i, statusName := range input.ReferensiStatus {
-		statuses = append(statuses, model.ReferensiStatusLayanan{
-			LayananID:   id,
-			NamaStatus:  strings.TrimSpace(statusName),
-			UrutanTahap: i + 1,
-		})
+	// Update data status (hanya jika dikirim)
+	if input.ReferensiStatus != nil {
+		var statuses []model.ReferensiStatusLayanan
+		for i, statusName := range *input.ReferensiStatus {
+			statuses = append(statuses, model.ReferensiStatusLayanan{
+				LayananID:   id,
+				NamaStatus:  strings.TrimSpace(statusName),
+				UrutanTahap: i + 1,
+			})
+		}
+		if err := ctrl.layananRepo.UpdateStatusLayanan(id, statuses); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate referensi status layanan"})
+			return
+		}
 	}
 
-	if err := ctrl.layananRepo.UpdateStatusLayanan(id, statuses); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate referensi status layanan"})
-		return
-	}
-
-	// Update data paket
-	var pakets []model.PaketLayanan
-	for _, pkt := range input.PaketLayanan {
-		pakets = append(pakets, model.PaketLayanan{
-			LayananID:     id,
-			NamaPaket:     strings.TrimSpace(pkt.NamaPaket),
-			DurasiJam:     pkt.DurasiJam,
-			BiayaTambahan: pkt.BiayaTambahan,
-		})
-	}
-
-	if err := ctrl.layananRepo.UpdatePaketLayanan(id, pakets); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate paket layanan"})
-		return
+	// Update data paket (hanya jika dikirim)
+	if input.PaketLayanan != nil {
+		var pakets []model.PaketLayanan
+		for _, pkt := range *input.PaketLayanan {
+			pakets = append(pakets, model.PaketLayanan{
+				LayananID:     id,
+				NamaPaket:     strings.TrimSpace(pkt.NamaPaket),
+				DurasiJam:     pkt.DurasiJam,
+				BiayaTambahan: pkt.BiayaTambahan,
+			})
+		}
+		if err := ctrl.layananRepo.UpdatePaketLayanan(id, pakets); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate paket layanan"})
+			return
+		}
 	}
 
 	fullData, _ := ctrl.layananRepo.FindByID(id)

@@ -89,9 +89,9 @@ func (c *ParfumController) Update(ctx *gin.Context) {
 	}
 
 	var input struct {
-		NamaParfum string `json:"nama_parfum" binding:"required"`
-		Keterangan string `json:"keterangan"`
-		Status     string `json:"status_parfum"`
+		NamaParfum *string `json:"nama_parfum"`
+		Keterangan *string `json:"keterangan"`
+		Status     *string `json:"status_parfum"`
 	}
 
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -105,9 +105,15 @@ func (c *ParfumController) Update(ctx *gin.Context) {
 		return
 	}
 
-	parfum.NamaParfum = input.NamaParfum
-	parfum.Keterangan = input.Keterangan
-	parfum.StatusParfum = input.Status
+	if input.NamaParfum != nil {
+		parfum.NamaParfum = *input.NamaParfum
+	}
+	if input.Keterangan != nil {
+		parfum.Keterangan = *input.Keterangan
+	}
+	if input.Status != nil {
+		parfum.StatusParfum = *input.Status
+	}
 
 	updatedParfum, err := c.parfumRepo.Update(parfum)
 	if err != nil {

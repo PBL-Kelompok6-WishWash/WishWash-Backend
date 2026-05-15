@@ -96,6 +96,20 @@ func (c *PromoController) Create(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Data Promo Berhasil Disimpan", "data": newPromo})
 }
 
+type UpdatePromoInput struct {
+	KodePromo        *string  `json:"kode_promo"`
+	NamaPromo        *string  `json:"nama_promo"`
+	Deskripsi        *string  `json:"deskripsi"`
+	TipePromo        *string  `json:"tipe_promo"`
+	NominalPotongan  *float64 `json:"nominal_potongan"`
+	MinimalOrder     *float64 `json:"minimal_order"`
+	MaksimalPotongan *float64 `json:"maksimal_potongan"`
+	TglMulai         *string  `json:"tgl_mulai"`
+	TglBerakhir      *string  `json:"tgl_berakhir"`
+	StatusPromo      *string  `json:"status_promo"`
+	GambarPromo      *string  `json:"gambar_promo"`
+}
+
 func (c *PromoController) Update(ctx *gin.Context) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
@@ -103,7 +117,7 @@ func (c *PromoController) Update(ctx *gin.Context) {
 		return
 	}
 
-	var input PromoInput
+	var input UpdatePromoInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -115,28 +129,49 @@ func (c *PromoController) Update(ctx *gin.Context) {
 		return
 	}
 
-	tglMulai, err := time.Parse("2006-01-02", input.TglMulai)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal mulai tidak valid, gunakan YYYY-MM-DD"})
-		return
+	if input.KodePromo != nil {
+		promo.KodePromo = *input.KodePromo
 	}
-	tglBerakhir, err := time.Parse("2006-01-02", input.TglBerakhir)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal berakhir tidak valid, gunakan YYYY-MM-DD"})
-		return
+	if input.NamaPromo != nil {
+		promo.NamaPromo = *input.NamaPromo
 	}
-
-	promo.KodePromo        = input.KodePromo
-	promo.NamaPromo        = input.NamaPromo
-	promo.Deskripsi        = input.Deskripsi
-	promo.TipePromo        = input.TipePromo
-	promo.NominalPotongan  = input.NominalPotongan
-	promo.MinimalOrder     = input.MinimalOrder
-	promo.MaksimalPotongan = input.MaksimalPotongan
-	promo.TglMulai         = tglMulai
-	promo.TglBerakhir      = tglBerakhir
-	promo.StatusPromo      = input.StatusPromo
-	promo.GambarPromo      = input.GambarPromo
+	if input.Deskripsi != nil {
+		promo.Deskripsi = *input.Deskripsi
+	}
+	if input.TipePromo != nil {
+		promo.TipePromo = *input.TipePromo
+	}
+	if input.NominalPotongan != nil {
+		promo.NominalPotongan = *input.NominalPotongan
+	}
+	if input.MinimalOrder != nil {
+		promo.MinimalOrder = *input.MinimalOrder
+	}
+	if input.MaksimalPotongan != nil {
+		promo.MaksimalPotongan = *input.MaksimalPotongan
+	}
+	if input.TglMulai != nil {
+		tglMulai, err := time.Parse("2006-01-02", *input.TglMulai)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal mulai tidak valid, gunakan YYYY-MM-DD"})
+			return
+		}
+		promo.TglMulai = tglMulai
+	}
+	if input.TglBerakhir != nil {
+		tglBerakhir, err := time.Parse("2006-01-02", *input.TglBerakhir)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal berakhir tidak valid, gunakan YYYY-MM-DD"})
+			return
+		}
+		promo.TglBerakhir = tglBerakhir
+	}
+	if input.StatusPromo != nil {
+		promo.StatusPromo = *input.StatusPromo
+	}
+	if input.GambarPromo != nil {
+		promo.GambarPromo = *input.GambarPromo
+	}
 
 	updated, err := c.promoRepo.Update(promo)
 	if err != nil {
