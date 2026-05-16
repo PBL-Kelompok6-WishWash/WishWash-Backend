@@ -27,6 +27,7 @@ type profileController struct {
 	adminRepo     repository.AdminRepository
 	karyawanRepo  repository.KaryawanRepository
 	pelangganRepo repository.PelangganRepository
+	alamatRepo    repository.AlamatRepository
 }
 
 type UpdatePasswordInput struct {
@@ -39,8 +40,9 @@ func NewProfileController(
 	aRepo repository.AdminRepository,
 	kRepo repository.KaryawanRepository,
 	pRepo repository.PelangganRepository,
+	alRepo repository.AlamatRepository,
 ) ProfileController {
-	return &profileController{uRepo, aRepo, kRepo, pRepo}
+	return &profileController{uRepo, aRepo, kRepo, pRepo, alRepo}
 }
 
 func (ctrl *profileController) GetProfile(c *gin.Context) {
@@ -70,7 +72,21 @@ func (ctrl *profileController) GetProfile(c *gin.Context) {
 	case 2:
 		profileData, err = ctrl.karyawanRepo.FindByUserID(userID)
 	case 3:
-		profileData, err = ctrl.pelangganRepo.FindByUserID(userID)
+		pelanggan, errP := ctrl.pelangganRepo.FindByUserID(userID)
+		err = errP
+		if errP == nil {
+			var alamatLengkap string
+			alamat, errAlamat := ctrl.alamatRepo.FindByPelangganID(pelanggan.IDPelanggan)
+			if errAlamat == nil && alamat != nil {
+				alamatLengkap = alamat.AlamatLengkap
+			} else {
+				alamatLengkap = "Alamat belum diatur"
+			}
+			profileData = gin.H{
+				"pelanggan":      pelanggan,
+				"alamat_lengkap": alamatLengkap,
+			}
+		}
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Role tidak dikenali sistem."})
 		return
