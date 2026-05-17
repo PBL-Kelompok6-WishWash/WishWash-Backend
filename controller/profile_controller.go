@@ -76,15 +76,19 @@ func (ctrl *profileController) GetProfile(c *gin.Context) {
 		err = errP
 		if errP == nil {
 			var alamatLengkap string
+			var tipeAlamat string
 			alamat, errAlamat := ctrl.alamatRepo.FindByPelangganID(pelanggan.IDPelanggan)
 			if errAlamat == nil && alamat != nil {
 				alamatLengkap = alamat.AlamatLengkap
+				tipeAlamat = alamat.TipeAlamat
 			} else {
 				alamatLengkap = "Alamat belum diatur"
+				tipeAlamat = "Rumah"
 			}
 			profileData = gin.H{
 				"pelanggan":      pelanggan,
 				"alamat_lengkap": alamatLengkap,
+				"tipe_alamat":    tipeAlamat,
 			}
 		}
 	default:

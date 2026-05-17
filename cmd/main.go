@@ -38,6 +38,7 @@ func main() {
 	parfumController := controller.NewParfumController(parfumRepo)
 	promoController := controller.NewPromoController(promoRepo)
 	metodePembayaranController := controller.NewMetodePembayaranController(config.DB)
+	alamatController := controller.NewAlamatController(alamatRepo, pelangganRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -59,6 +60,17 @@ func main() {
         profileRoutes.GET("", profileController.GetProfile)
         profileRoutes.PUT("/update", profileController.UpdateProfile)
         profileRoutes.PUT("/password", profileController.UpdatePassword)
+    }
+
+    // Rute Alamat (Pelanggan Only)
+    alamatRoutes := api.Group("/alamat")
+    alamatRoutes.Use(middleware.JWTAuthMiddleware()) // Satpam 1 (Cek Token)
+    {
+        alamatRoutes.GET("", alamatController.GetAlamatPelanggan)
+        alamatRoutes.POST("", alamatController.CreateAlamat)
+        alamatRoutes.PUT("/:id", alamatController.UpdateAlamat)
+        alamatRoutes.PUT("/:id/primary", alamatController.SetPrimaryAlamat)
+        alamatRoutes.DELETE("/:id", alamatController.DeleteAlamat)
     }
 
     // B. Rute Khusus Admin (Hanya Role 1 yang bisa akses)
