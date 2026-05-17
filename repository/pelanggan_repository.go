@@ -45,7 +45,16 @@ func (r *pelangganRepository) FindByUserID(userID uint) (*model.Pelanggan, error
 }
 
 func (r *pelangganRepository) UpdatePelanggan(pelanggan *model.Pelanggan) error {
-	return r.db.Model(pelanggan).Where("id_user = ?", pelanggan.UserID).Update("nama_lengkap", pelanggan.NamaLengkap).Error
+	updates := map[string]interface{}{
+		"nama_lengkap": pelanggan.NamaLengkap,
+	}
+	if pelanggan.NoTelp != "" {
+		updates["no_telp"] = pelanggan.NoTelp
+	}
+	if pelanggan.FotoPelanggan != "" {
+		updates["foto_pelanggan"] = pelanggan.FotoPelanggan
+	}
+	return r.db.Model(pelanggan).Where("id_user = ?", pelanggan.UserID).Updates(updates).Error
 }
 
 func (r *pelangganRepository) FindAll() ([]model.Pelanggan, error) {

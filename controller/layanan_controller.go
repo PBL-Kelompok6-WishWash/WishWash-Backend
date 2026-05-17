@@ -25,6 +25,7 @@ type LayananInput struct {
 	ReferensiStatus []string            `json:"referensi_status" binding:"required,min=1"` // Array of status names in sequence
 	PaketLayanan    []PaketLayananInput `json:"paket_layanan"`                           // Daftar paket (opsional)
 	StatusLayanan   string              `json:"status_layanan"`
+	WarnaLayanan    string              `json:"warna_layanan"`
 }
 
 type LayananController interface {
@@ -100,6 +101,7 @@ func (ctrl *layananController) Create(c *gin.Context) {
 		JenisSatuan:    input.JenisSatuan,
 		HargaPerSatuan: input.HargaPerSatuan,
 		StatusLayanan:  input.StatusLayanan,
+		WarnaLayanan:   input.WarnaLayanan,
 	}
 
 	// Konversi array string menjadi array struct ReferensiStatusLayanan
@@ -141,6 +143,7 @@ type UpdateLayananInput struct {
 	ReferensiStatus *[]string            `json:"referensi_status"`
 	PaketLayanan    *[]PaketLayananInput `json:"paket_layanan"`
 	StatusLayanan   *string              `json:"status_layanan"`
+	WarnaLayanan    *string              `json:"warna_layanan"`
 }
 
 func (ctrl *layananController) Update(c *gin.Context) {
@@ -174,6 +177,9 @@ func (ctrl *layananController) Update(c *gin.Context) {
 	}
 	if input.StatusLayanan != nil {
 		layanan.StatusLayanan = *input.StatusLayanan
+	}
+	if input.WarnaLayanan != nil {
+		layanan.WarnaLayanan = *input.WarnaLayanan
 	}
 
 	if err := ctrl.layananRepo.Update(layanan); err != nil {

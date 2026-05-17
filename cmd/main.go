@@ -73,6 +73,13 @@ func main() {
         alamatRoutes.DELETE("/:id", alamatController.DeleteAlamat)
     }
 
+    // Rute Layanan Pelanggan (General Authenticated Users)
+    layananPubRoutes := api.Group("/layanan")
+    layananPubRoutes.Use(middleware.JWTAuthMiddleware())
+    {
+        layananPubRoutes.GET("", layananController.GetAll)
+    }
+
     // B. Rute Khusus Admin (Hanya Role 1 yang bisa akses)
     adminRoutes := api.Group("/admin")
     adminRoutes.Use(middleware.JWTAuthMiddleware(), middleware.AdminOnly()) // Satpam 1 & 2

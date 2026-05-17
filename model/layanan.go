@@ -7,6 +7,7 @@ type Layanan struct {
 	JenisSatuan    string  `gorm:"type:varchar(50);column:jenis_satuan" json:"jenis_satuan"`
 	HargaPerSatuan float64 `gorm:"type:numeric;column:harga_per_satuan" json:"harga_per_satuan"`
 	StatusLayanan  string  `gorm:"type:varchar(20);not null;default:'Aktif';column:status_layanan" json:"status_layanan"`
+	WarnaLayanan   string  `gorm:"type:varchar(7);default:'#00BCD4';column:warna_layanan" json:"warna_layanan"`
 
 	// Relasi ke ReferensiStatusLayanan (1 Layanan -> N Status)
 	ReferensiStatus []ReferensiStatusLayanan `gorm:"foreignKey:LayananID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"referensi_status"`

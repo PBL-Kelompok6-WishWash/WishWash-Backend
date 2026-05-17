@@ -8,19 +8,13 @@ import (
 )
 
 func SeedLayanan(db *gorm.DB) {
-	var count int64
-	db.Model(&model.Layanan{}).Count(&count)
-
-	if count > 0 {
-		log.Println("✅ Data Layanan sudah ada, skip proses seeding.")
-		return
-	}
-
 	layanans := []model.Layanan{
 		{
 			NamaLayanan:    "Cuci Kering Lipat",
 			JenisSatuan:    "Kg",
 			HargaPerSatuan: 7000,
+			WarnaLayanan:   "#00BCD4", // Cyan
+			GambarLayanan:  "assets/images/services/dry_clean.png",
 			ReferensiStatus: []model.ReferensiStatusLayanan{
 				{NamaStatus: "Pesanan Diterima", UrutanTahap: 1},
 				{NamaStatus: "Penjemputan", UrutanTahap: 2},
@@ -42,6 +36,8 @@ func SeedLayanan(db *gorm.DB) {
 			NamaLayanan:    "Cuci Kering",
 			JenisSatuan:    "Kg",
 			HargaPerSatuan: 5000,
+			WarnaLayanan:   "#8BC34A", // Hijau muda
+			GambarLayanan:  "assets/images/services/wash_only.png",
 			ReferensiStatus: []model.ReferensiStatusLayanan{
 				{NamaStatus: "Pesanan Diterima", UrutanTahap: 1},
 				{NamaStatus: "Penjemputan", UrutanTahap: 2},
@@ -62,6 +58,8 @@ func SeedLayanan(db *gorm.DB) {
 			NamaLayanan:    "Cuci & Setrika",
 			JenisSatuan:    "Kg",
 			HargaPerSatuan: 10000,
+			WarnaLayanan:   "#9C27B0", // Ungu
+			GambarLayanan:  "assets/images/services/wash_iron.png",
 			ReferensiStatus: []model.ReferensiStatusLayanan{
 				{NamaStatus: "Pesanan Diterima", UrutanTahap: 1},
 				{NamaStatus: "Penjemputan", UrutanTahap: 2},
@@ -83,6 +81,8 @@ func SeedLayanan(db *gorm.DB) {
 			NamaLayanan:    "Setrika",
 			JenisSatuan:    "Kg",
 			HargaPerSatuan: 6000,
+			WarnaLayanan:   "#FFC107", // Kuning
+			GambarLayanan:  "assets/images/services/ironing.png",
 			ReferensiStatus: []model.ReferensiStatusLayanan{
 				{NamaStatus: "Pesanan Diterima", UrutanTahap: 1},
 				{NamaStatus: "Penjemputan", UrutanTahap: 2},
@@ -101,10 +101,21 @@ func SeedLayanan(db *gorm.DB) {
 	}
 
 	for _, l := range layanans {
-		if err := db.Create(&l).Error; err != nil {
-			log.Printf("❌ Gagal seeding layanan %s: %v\n", l.NamaLayanan, err)
+		var existing model.Layanan
+		// Cek berdasarkan NamaLayanan
+		if err := db.Where("nama_layanan = ?", l.NamaLayanan).First(&existing).Error; err == nil {
+			// Update field baru jika data sudah ada
+			existing.WarnaLayanan = l.WarnaLayanan
+			existing.GambarLayanan = l.GambarLayanan
+			db.Save(&existing)
+			log.Printf("🔄 Berhasil mengupdate warna & gambar layanan %s!\n", l.NamaLayanan)
 		} else {
-			log.Printf("🌱 Berhasil seeding layanan %s!\n", l.NamaLayanan)
+			// Buat baru jika belum ada
+			if err := db.Create(&l).Error; err != nil {
+				log.Printf("❌ Gagal seeding layanan %s: %v\n", l.NamaLayanan, err)
+			} else {
+				log.Printf("🌱 Berhasil seeding layanan %s!\n", l.NamaLayanan)
+			}
 		}
 	}
 }
