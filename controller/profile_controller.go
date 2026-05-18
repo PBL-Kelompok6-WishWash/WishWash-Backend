@@ -35,8 +35,14 @@ type profileController struct {
 }
 
 type UpdatePasswordInput struct {
-	OldPassword string `json:"oldPassword" binding:"required"`
-	NewPassword string `json:"newPassword" binding:"required,min=6"`
+	PasswordLama       string `json:"password_lama"`
+	PasswordBaru       string `json:"password_baru"`
+	KonfirmasiPassword string `json:"konfirmasi_password"`
+	
+	// Backward compatibility fields for Next.js web dashboard
+	OldPassword     string `json:"oldPassword"`
+	NewPassword     string `json:"newPassword"`
+	ConfirmPassword string `json:"confirmPassword"`
 }
 
 func NewProfileController(
@@ -149,31 +155,80 @@ func (ctrl *profileController) UpdateProfile(c *gin.Context) {
 	// 5. Update tabel sesuai ROLE (Admin / Karyawan / Pelanggan)
 	switch user.RoleID {
 	case 1:
-		admin := model.Admin{UserID: userID, NamaAdmin: input.Nama}
-		ctrl.adminRepo.UpdateAdmin(&admin)
+		existingAdmin, err := ctrl.adminRepo.FindByUserID(userID)
+		if err == nil {
+			if input.Nama != "" {
+				existingAdmin.NamaAdmin = input.Nama
+			}
+			ctrl.adminRepo.UpdateAdmin(existingAdmin)
+		}
 	case 2:
-		karyawan := model.Karyawan{
-			UserID:         userID,
-			NamaKaryawan:   input.Nama,
-			NoTelp:         input.NoTelp,
-			FotoKaryawan:   input.FotoPelanggan,
-			PlatNomor:      input.PlatNomor,
-			JenisKendaraan: input.JenisKendaraan,
+		existingKaryawan, err := ctrl.karyawanRepo.FindByUserID(userID)
+		if err == nil {
+			if input.Nama != "" {
+				existingKaryawan.NamaKaryawan = input.Nama
+			}
+			if input.NoTelp != "" {
+				existingKaryawan.NoTelp = input.NoTelp
+			}
+			if input.FotoPelanggan != "" {
+				existingKaryawan.FotoKaryawan = input.FotoPelanggan
+			}
+			if input.PlatNomor != "" {
+				existingKaryawan.PlatNomor = input.PlatNomor
+			}
+			if input.JenisKendaraan != "" {
+				existingKaryawan.JenisKendaraan = input.JenisKendaraan
+			}
+			ctrl.karyawanRepo.UpdateKaryawan(existingKaryawan)
 		}
-		ctrl.karyawanRepo.UpdateKaryawan(&karyawan)
 	case 3:
-		pelanggan := model.Pelanggan{
-			UserID:        userID,
-			NamaLengkap:   input.Nama,
-			NoTelp:        input.NoTelp,
-			FotoPelanggan: input.FotoPelanggan,
+		existingPelanggan, err := ctrl.pelangganRepo.FindByUserID(userID)
+		if err == nil {
+			if input.Nama != "" {
+				existingPelanggan.NamaLengkap = input.Nama
+			}
+			if input.NoTelp != "" {
+				existingPelanggan.NoTelp = input.NoTelp
+			}
+			if input.FotoPelanggan != "" {
+				existingPelanggan.FotoPelanggan = input.FotoPelanggan
+			}
+			ctrl.pelangganRepo.UpdatePelanggan(existingPelanggan)
 		}
-		ctrl.pelangganRepo.UpdatePelanggan(&pelanggan)
+	}
+
+	// 6. Tarik data profil terbaru untuk dikembalikan utuh ke client
+	var profileData interface{}
+	switch user.RoleID {
+	case 1:
+		profileData, _ = ctrl.adminRepo.FindByUserID(userID)
+	case 2:
+		profileData, _ = ctrl.karyawanRepo.FindByUserID(userID)
+	case 3:
+		pelanggan, errP := ctrl.pelangganRepo.FindByUserID(userID)
+		if errP == nil {
+			var alamatLengkap string
+			var tipeAlamat string
+			alamat, errAlamat := ctrl.alamatRepo.FindByPelangganID(pelanggan.IDPelanggan)
+			if errAlamat == nil && alamat != nil {
+				alamatLengkap = alamat.AlamatLengkap
+				tipeAlamat = alamat.TipeAlamat
+			} else {
+				alamatLengkap = "Alamat belum diatur"
+				tipeAlamat = "Rumah"
+			}
+			profileData = gin.H{
+				"pelanggan":      pelanggan,
+				"alamat_lengkap": alamatLengkap,
+				"tipe_alamat":    tipeAlamat,
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Profil berhasil diperbarui!",
-		"nama":    input.Nama,
+		"data":    profileData,
 	})
 }
 
@@ -188,7 +243,43 @@ func (ctrl *profileController) UpdatePassword(c *gin.Context) {
 
 	var input UpdatePasswordInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak lengkap atau password kurang dari 6 karakter."})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format data tidak valid."})
+		return
+	}
+
+	// 1. Ambil password lama dengan toleransi dual-language
+	passwordLama := input.PasswordLama
+	if passwordLama == "" {
+		passwordLama = input.OldPassword
+	}
+
+	// 2. Ambil password baru dengan toleransi dual-language
+	passwordBaru := input.PasswordBaru
+	if passwordBaru == "" {
+		passwordBaru = input.NewPassword
+	}
+
+	// 3. Ambil konfirmasi password dengan toleransi dual-language
+	konfirmasiPassword := input.KonfirmasiPassword
+	if konfirmasiPassword == "" {
+		konfirmasiPassword = input.ConfirmPassword
+	}
+
+	// 4. Validasi keberadaan data wajib
+	if passwordLama == "" || passwordBaru == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak lengkap! Harap masukkan password lama dan password baru."})
+		return
+	}
+
+	// 5. Validasi panjang password baru
+	if len(passwordBaru) < 6 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Password baru harus minimal 6 karakter!"})
+		return
+	}
+
+	// 6. Cek konfirmasi password (hanya jika dikirimkan oleh client/postman)
+	if konfirmasiPassword != "" && passwordBaru != konfirmasiPassword {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Konfirmasi password baru tidak cocok!"})
 		return
 	}
 
@@ -199,15 +290,15 @@ func (ctrl *profileController) UpdatePassword(c *gin.Context) {
 		return
 	}
 
-	// Cek apakah Old Password yang diinput cocok dengan di Database
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.OldPassword))
+	// Cek apakah Password Lama cocok dengan hash di database
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordLama))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Password saat ini salah!"})
 		return
 	}
 
 	// Hash Password Baru
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(passwordBaru), bcrypt.DefaultCost)
 	
 	// Update ke struct dan simpan
 	user.Password = string(hashedPassword)
