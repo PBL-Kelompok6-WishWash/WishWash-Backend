@@ -11,11 +11,13 @@ import (
 
 // DTO yang umum untuk semua Role
 type UpdateProfileInput struct {
-	Username      string `json:"username"`
-	Email         string `json:"email"`
-	Nama          string `json:"nama"` // Menampung NamaAdmin / NamaKaryawan / NamaLengkap
-	NoTelp        string `json:"no_telp"`
-	FotoPelanggan string `json:"foto_pelanggan"`
+	Username       string `json:"username"`
+	Email          string `json:"email"`
+	Nama           string `json:"nama"` // Menampung NamaAdmin / NamaKaryawan / NamaLengkap
+	NoTelp         string `json:"no_telp"`
+	FotoPelanggan  string `json:"foto_pelanggan"`
+	PlatNomor      string `json:"plat_nomor"`
+	JenisKendaraan string `json:"jenis_kendaraan"`
 }
 
 type ProfileController interface {
@@ -150,7 +152,14 @@ func (ctrl *profileController) UpdateProfile(c *gin.Context) {
 		admin := model.Admin{UserID: userID, NamaAdmin: input.Nama}
 		ctrl.adminRepo.UpdateAdmin(&admin)
 	case 2:
-		karyawan := model.Karyawan{UserID: userID, NamaKaryawan: input.Nama}
+		karyawan := model.Karyawan{
+			UserID:         userID,
+			NamaKaryawan:   input.Nama,
+			NoTelp:         input.NoTelp,
+			FotoKaryawan:   input.FotoPelanggan,
+			PlatNomor:      input.PlatNomor,
+			JenisKendaraan: input.JenisKendaraan,
+		}
 		ctrl.karyawanRepo.UpdateKaryawan(&karyawan)
 	case 3:
 		pelanggan := model.Pelanggan{
