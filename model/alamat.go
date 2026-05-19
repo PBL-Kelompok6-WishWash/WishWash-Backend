@@ -11,7 +11,7 @@ type Alamat struct {
 	NoHpPenerima  string  `gorm:"type:varchar(20);column:nohp_penerima" json:"nohp_penerima"`
 	IsPrimary     bool    `gorm:"type:boolean;default:false;column:is_primary" json:"is_primary"`
 
-	Pelanggan Pelanggan `gorm:"foreignKey:PelangganID" json:"Pelanggan"`
+	Pelanggan *Pelanggan `gorm:"foreignKey:PelangganID" json:"Pelanggan,omitempty"`
 }
 
 func (Alamat) TableName() string {
