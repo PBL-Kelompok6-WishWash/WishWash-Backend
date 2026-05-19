@@ -24,8 +24,9 @@ type LayananInput struct {
 	HargaPerSatuan  float64             `json:"harga_per_satuan" binding:"required"`
 	ReferensiStatus []string            `json:"referensi_status" binding:"required,min=1"` // Array of status names in sequence
 	PaketLayanan    []PaketLayananInput `json:"paket_layanan"`                           // Daftar paket (opsional)
-	StatusLayanan   string              `json:"status_layanan"`
-	WarnaLayanan    string              `json:"warna_layanan"`
+	StatusLayanan    string              `json:"status_layanan"`
+	WarnaLayanan     string              `json:"warna_layanan"`
+	DeskripsiLayanan string              `json:"deskripsi_layanan"`
 }
 
 type LayananController interface {
@@ -100,8 +101,9 @@ func (ctrl *layananController) Create(c *gin.Context) {
 		GambarLayanan:  input.GambarLayanan,
 		JenisSatuan:    input.JenisSatuan,
 		HargaPerSatuan: input.HargaPerSatuan,
-		StatusLayanan:  input.StatusLayanan,
-		WarnaLayanan:   input.WarnaLayanan,
+		StatusLayanan:    input.StatusLayanan,
+		WarnaLayanan:     input.WarnaLayanan,
+		DeskripsiLayanan: input.DeskripsiLayanan,
 	}
 
 	// Konversi array string menjadi array struct ReferensiStatusLayanan
@@ -142,8 +144,9 @@ type UpdateLayananInput struct {
 	HargaPerSatuan  *float64             `json:"harga_per_satuan"`
 	ReferensiStatus *[]string            `json:"referensi_status"`
 	PaketLayanan    *[]PaketLayananInput `json:"paket_layanan"`
-	StatusLayanan   *string              `json:"status_layanan"`
-	WarnaLayanan    *string              `json:"warna_layanan"`
+	StatusLayanan    *string              `json:"status_layanan"`
+	WarnaLayanan     *string              `json:"warna_layanan"`
+	DeskripsiLayanan *string              `json:"deskripsi_layanan"`
 }
 
 func (ctrl *layananController) Update(c *gin.Context) {
@@ -180,6 +183,9 @@ func (ctrl *layananController) Update(c *gin.Context) {
 	}
 	if input.WarnaLayanan != nil {
 		layanan.WarnaLayanan = *input.WarnaLayanan
+	}
+	if input.DeskripsiLayanan != nil {
+		layanan.DeskripsiLayanan = *input.DeskripsiLayanan
 	}
 
 	if err := ctrl.layananRepo.Update(layanan); err != nil {
