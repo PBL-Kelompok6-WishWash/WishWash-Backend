@@ -28,6 +28,7 @@ func main() {
 	parfumRepo := repository.NewParfumRepository(config.DB)
 	promoRepo := repository.NewPromoRepository(config.DB)
 	alamatRepo := repository.NewAlamatRepository(config.DB)
+	orderRepo := repository.NewOrderRepository(config.DB)
 
 	// 3. Pekerjakan "Pelayan" (Controller)
 	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo)
@@ -39,6 +40,7 @@ func main() {
 	promoController := controller.NewPromoController(promoRepo)
 	metodePembayaranController := controller.NewMetodePembayaranController(config.DB)
 	alamatController := controller.NewAlamatController(alamatRepo, pelangganRepo)
+	orderController := controller.NewOrderController(orderRepo, pelangganRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -71,6 +73,15 @@ func main() {
         alamatRoutes.PUT("/:id", alamatController.UpdateAlamat)
         alamatRoutes.PUT("/:id/primary", alamatController.SetPrimaryAlamat)
         alamatRoutes.DELETE("/:id", alamatController.DeleteAlamat)
+    }
+
+    // Rute Order (Pelanggan Only)
+    orderRoutes := api.Group("/order")
+    orderRoutes.Use(middleware.JWTAuthMiddleware())
+    {
+        orderRoutes.GET("", orderController.GetOrdersPelanggan)
+        orderRoutes.POST("", orderController.CreateOrder)
+        orderRoutes.GET("/:id", orderController.GetOrderByID)
     }
 
     // Rute Layanan Pelanggan (General Authenticated Users)
