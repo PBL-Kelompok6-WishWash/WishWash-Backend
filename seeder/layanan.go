@@ -14,7 +14,7 @@ func SeedLayanan(db *gorm.DB) {
 			JenisSatuan:    "Kg",
 			HargaPerSatuan: 7000,
 			WarnaLayanan:   "#00BCD4", // Cyan
-			GambarLayanan:  "assets/images/services/dry_clean.png",
+			GambarLayanan:  "",
 			DeskripsiLayanan: "Paket lengkap cuci bersih, kering, lipat rapi.",
 			ReferensiStatus: []model.ReferensiStatusLayanan{
 				{NamaStatus: "Pesanan Diterima", UrutanTahap: 1},
@@ -38,7 +38,7 @@ func SeedLayanan(db *gorm.DB) {
 			JenisSatuan:    "Kg",
 			HargaPerSatuan: 5000,
 			WarnaLayanan:   "#8BC34A", // Hijau muda
-			GambarLayanan:  "assets/images/services/wash_only.png",
+			GambarLayanan:  "",
 			DeskripsiLayanan: "Dicuci bersih dan dikeringkan tanpa disetrika.",
 			ReferensiStatus: []model.ReferensiStatusLayanan{
 				{NamaStatus: "Pesanan Diterima", UrutanTahap: 1},
@@ -61,7 +61,7 @@ func SeedLayanan(db *gorm.DB) {
 			JenisSatuan:    "Kg",
 			HargaPerSatuan: 10000,
 			WarnaLayanan:   "#9C27B0", // Ungu
-			GambarLayanan:  "assets/images/services/wash_iron.png",
+			GambarLayanan:  "",
 			DeskripsiLayanan: "Dicuci bersih, wangi, dan disetrika rapi.",
 			ReferensiStatus: []model.ReferensiStatusLayanan{
 				{NamaStatus: "Pesanan Diterima", UrutanTahap: 1},
@@ -85,7 +85,7 @@ func SeedLayanan(db *gorm.DB) {
 			JenisSatuan:    "Kg",
 			HargaPerSatuan: 6000,
 			WarnaLayanan:   "#FFC107", // Kuning
-			GambarLayanan:  "assets/images/services/ironing.png",
+			GambarLayanan:  "",
 			DeskripsiLayanan: "Pakaian disetrika rapi & harum premium.",
 			ReferensiStatus: []model.ReferensiStatusLayanan{
 				{NamaStatus: "Pesanan Diterima", UrutanTahap: 1},
@@ -108,12 +108,7 @@ func SeedLayanan(db *gorm.DB) {
 		var existing model.Layanan
 		// Cek berdasarkan NamaLayanan
 		if err := db.Where("nama_layanan = ?", l.NamaLayanan).First(&existing).Error; err == nil {
-			// Update field baru jika data sudah ada
-			existing.WarnaLayanan = l.WarnaLayanan
-			existing.GambarLayanan = l.GambarLayanan
-			existing.DeskripsiLayanan = l.DeskripsiLayanan
-			db.Save(&existing)
-			log.Printf("🔄 Berhasil mengupdate warna, gambar, & deskripsi layanan %s!\n", l.NamaLayanan)
+			log.Printf("ℹ️ Layanan %s sudah ada, dilewati (seeder tidak meng-update data).\n", l.NamaLayanan)
 		} else {
 			// Buat baru jika belum ada
 			if err := db.Create(&l).Error; err != nil {

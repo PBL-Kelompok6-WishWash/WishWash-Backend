@@ -7,9 +7,10 @@ import (
 
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
+	"github.com/PBL-Kelompok6-WishWash/backend/utils"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/go-playground/validator/v10"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // DTO untuk input dari Next.js
@@ -120,21 +121,32 @@ func (ctrl *pelangganController) Create(c *gin.Context) {
 		return
 	}
 
-	// 3. Buat Profil Pelanggan
+	// 3. Buat Profil Pelanggan dulu (tanpa foto) agar mendapat ID
 	pelanggan := model.Pelanggan{
 		UserID:        user.IDUser,
 		NamaLengkap:   input.NamaLengkap,
 		NoTelp:        input.NoTelp,
-		FotoPelanggan: input.FotoPelanggan, // 💡 Pastikan foto ikut disimpan ke DB
+		FotoPelanggan: "",
 	}
 
-	// Simpan Profil Pelanggan
 	if err := ctrl.pelangganRepo.CreatePelanggan(&pelanggan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan detail pelanggan"})
 		return
 	}
 
-	// 4. Ambil data lengkap (untuk preload User & Role) sebelum dikembalikan ke client
+	// 4. Simpan foto ke subfolder per-entity (sekarang ID sudah ada)
+	if input.FotoPelanggan != "" {
+		entityFolder := utils.BuildEntityFolder(pelanggan.IDPelanggan, input.NamaLengkap)
+		fotoPath, err := utils.SaveBase64Image(input.FotoPelanggan, "pelanggan", entityFolder, "profile_pelanggan_"+input.NamaLengkap)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format foto tidak valid atau gagal disimpan"})
+			return
+		}
+		pelanggan.FotoPelanggan = fotoPath
+		_ = ctrl.pelangganRepo.Update(&pelanggan)
+	}
+
+	// 5. Ambil data lengkap (untuk preload User & Role) sebelum dikembalikan ke client
 	fullData, _ := ctrl.pelangganRepo.FindByID(pelanggan.IDPelanggan)
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Pelanggan berhasil ditambahkan!", "data": fullData})
@@ -188,14 +200,41 @@ func (ctrl *pelangganController) Update(c *gin.Context) {
 	}
 
 	// Update data Pelanggan jika dikirim
+	namaLengkap := pelanggan.NamaLengkap
 	if input.NamaLengkap != nil {
+		namaLengkap = *input.NamaLengkap
 		pelanggan.NamaLengkap = *input.NamaLengkap
 	}
 	if input.NoTelp != nil {
 		pelanggan.NoTelp = *input.NoTelp
 	}
+
+	// Handle foto pelanggan
 	if input.FotoPelanggan != nil {
-		pelanggan.FotoPelanggan = *input.FotoPelanggan
+		oldFotoPath := pelanggan.FotoPelanggan
+
+		if *input.FotoPelanggan == "" {
+			// User sengaja menghapus foto (klik X lalu simpan)
+			pelanggan.FotoPelanggan = ""
+			// Hapus file lama dari disk
+			if oldFotoPath != "" {
+				utils.DeleteImageFile(oldFotoPath)
+			}
+		} else {
+			// User mengupload foto baru (base64)
+			entityFolder := utils.BuildEntityFolder(pelanggan.IDPelanggan, namaLengkap)
+			fotoPath, err := utils.SaveBase64Image(*input.FotoPelanggan, "pelanggan", entityFolder, "profile_pelanggan_"+namaLengkap)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal menyimpan foto baru"})
+				return
+			}
+			pelanggan.FotoPelanggan = fotoPath
+
+			// Hapus file lama jika path-nya berubah
+			if oldFotoPath != "" && oldFotoPath != fotoPath {
+				utils.DeleteImageFile(oldFotoPath)
+			}
+		}
 	}
 
 	if err := ctrl.pelangganRepo.Update(pelanggan); err != nil {
@@ -216,6 +255,10 @@ func (ctrl *pelangganController) Delete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Pelanggan tidak ditemukan"})
 		return
 	}
+
+	// Hapus seluruh folder entity dari disk (bersih sekaligus)
+	entityFolder := utils.BuildEntityFolder(pelanggan.IDPelanggan, pelanggan.NamaLengkap)
+	utils.DeleteImageFolder("pelanggan", entityFolder)
 
 	// 2. Hapus Profil Pelanggannya dulu (Child)
 	if err := ctrl.pelangganRepo.Delete(pelanggan.IDPelanggan); err != nil {

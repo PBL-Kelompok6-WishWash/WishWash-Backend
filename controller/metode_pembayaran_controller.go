@@ -5,6 +5,7 @@ import (
 	// "strconv"
 
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
+	"github.com/PBL-Kelompok6-WishWash/backend/utils"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -46,10 +47,27 @@ func (ctrl *MetodePembayaranController) Create(c *gin.Context) {
 		return
 	}
 
+	// 1. Simpan detail tanpa gambarMetode dulu untuk dapat ID
+	gambarBase64 := mp.GambarMetode
+	mp.GambarMetode = ""
+
 	if err := ctrl.DB.Create(&mp).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat metode pembayaran"})
 		return
 	}
+
+	// 2. Simpan gambar ke subfolder per-entity menggunakan ID
+	if gambarBase64 != "" {
+		entityFolder := utils.BuildEntityFolder(mp.IDMetodePembayaran, mp.NamaMetode)
+		gambarPath, err := utils.SaveBase64Image(gambarBase64, "metode_bayar", entityFolder, "metode_"+mp.NamaMetode)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format gambar metode pembayaran tidak valid atau gagal disimpan"})
+			return
+		}
+		mp.GambarMetode = gambarPath
+		_ = ctrl.DB.Model(&mp).Update("gambar_metode", gambarPath)
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"data": mp})
 }
 
@@ -68,6 +86,41 @@ func (ctrl *MetodePembayaranController) Update(c *gin.Context) {
 		return
 	}
 
+	if gambarVal, exists := input["gambar_metode"]; exists {
+		gambarStr, ok := gambarVal.(string)
+		if ok {
+			oldGambarPath := mp.GambarMetode
+			namaMetode := mp.NamaMetode
+			if namaVal, nameExists := input["nama_metode"]; nameExists {
+				if nameStr, nameOk := namaVal.(string); nameOk && nameStr != "" {
+					namaMetode = nameStr
+				}
+			}
+
+			if gambarStr == "" {
+				// User klik X lalu simpan (hapus gambar)
+				input["gambar_metode"] = ""
+				if oldGambarPath != "" {
+					utils.DeleteImageFile(oldGambarPath)
+				}
+			} else {
+				// User upload gambar baru
+				entityFolder := utils.BuildEntityFolder(mp.IDMetodePembayaran, namaMetode)
+				gambarPath, err := utils.SaveBase64Image(gambarStr, "metode_bayar", entityFolder, "metode_"+namaMetode)
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal menyimpan gambar baru"})
+					return
+				}
+				input["gambar_metode"] = gambarPath
+
+				// Hapus file lama jika path-nya berubah
+				if oldGambarPath != "" && oldGambarPath != gambarPath {
+					utils.DeleteImageFile(oldGambarPath)
+				}
+			}
+		}
+	}
+
 	if err := ctrl.DB.Model(&mp).Updates(input).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui metode pembayaran"})
 		return
@@ -78,7 +131,17 @@ func (ctrl *MetodePembayaranController) Update(c *gin.Context) {
 // Delete godoc
 func (ctrl *MetodePembayaranController) Delete(c *gin.Context) {
 	id := c.Param("id")
-	if err := ctrl.DB.Delete(&model.MetodePembayaran{}, id).Error; err != nil {
+	var mp model.MetodePembayaran
+	if err := ctrl.DB.First(&mp, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Metode pembayaran tidak ditemukan"})
+		return
+	}
+
+	// Hapus seluruh folder entity dari disk (bersih sekaligus)
+	entityFolder := utils.BuildEntityFolder(mp.IDMetodePembayaran, mp.NamaMetode)
+	utils.DeleteImageFolder("metode_bayar", entityFolder)
+
+	if err := ctrl.DB.Delete(&mp).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus metode pembayaran"})
 		return
 	}

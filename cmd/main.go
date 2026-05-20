@@ -51,6 +51,9 @@ func main() {
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	r.Use(cors.New(corsConfig))
 
+	// Menyajikan folder uploads secara statis agar bisa diakses via URL/path
+	r.Static("/uploads", "./uploads")
+
 	// 5. Atur Papan Petunjuk Jalan (Routing API)
 	api := r.Group("/api/v1")
 

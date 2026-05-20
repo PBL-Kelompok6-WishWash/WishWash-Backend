@@ -5,6 +5,7 @@ import (
 
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
+	"github.com/PBL-Kelompok6-WishWash/backend/utils"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -165,14 +166,25 @@ func (ctrl *profileController) UpdateProfile(c *gin.Context) {
 	case 2:
 		existingKaryawan, err := ctrl.karyawanRepo.FindByUserID(userID)
 		if err == nil {
+			namaKaryawan := existingKaryawan.NamaKaryawan
 			if input.Nama != "" {
+				namaKaryawan = input.Nama
 				existingKaryawan.NamaKaryawan = input.Nama
 			}
 			if input.NoTelp != "" {
 				existingKaryawan.NoTelp = input.NoTelp
 			}
 			if input.FotoPelanggan != "" {
-				existingKaryawan.FotoKaryawan = input.FotoPelanggan
+				oldFotoPath := existingKaryawan.FotoKaryawan
+				entityFolder := utils.BuildEntityFolder(existingKaryawan.IDKaryawan, namaKaryawan)
+				fotoPath, errSave := utils.SaveBase64Image(input.FotoPelanggan, "karyawan", entityFolder, "profile_karyawan_"+namaKaryawan)
+				if errSave == nil {
+					existingKaryawan.FotoKaryawan = fotoPath
+					// Hapus file lama jika path-nya berubah
+					if oldFotoPath != "" && oldFotoPath != fotoPath {
+						utils.DeleteImageFile(oldFotoPath)
+					}
+				}
 			}
 			if input.PlatNomor != "" {
 				existingKaryawan.PlatNomor = input.PlatNomor
@@ -185,14 +197,25 @@ func (ctrl *profileController) UpdateProfile(c *gin.Context) {
 	case 3:
 		existingPelanggan, err := ctrl.pelangganRepo.FindByUserID(userID)
 		if err == nil {
+			namaPelanggan := existingPelanggan.NamaLengkap
 			if input.Nama != "" {
+				namaPelanggan = input.Nama
 				existingPelanggan.NamaLengkap = input.Nama
 			}
 			if input.NoTelp != "" {
 				existingPelanggan.NoTelp = input.NoTelp
 			}
 			if input.FotoPelanggan != "" {
-				existingPelanggan.FotoPelanggan = input.FotoPelanggan
+				oldFotoPath := existingPelanggan.FotoPelanggan
+				entityFolder := utils.BuildEntityFolder(existingPelanggan.IDPelanggan, namaPelanggan)
+				fotoPath, errSave := utils.SaveBase64Image(input.FotoPelanggan, "pelanggan", entityFolder, "profile_pelanggan_"+namaPelanggan)
+				if errSave == nil {
+					existingPelanggan.FotoPelanggan = fotoPath
+					// Hapus file lama jika path-nya berubah
+					if oldFotoPath != "" && oldFotoPath != fotoPath {
+						utils.DeleteImageFile(oldFotoPath)
+					}
+				}
 			}
 			ctrl.pelangganRepo.UpdatePelanggan(existingPelanggan)
 		}

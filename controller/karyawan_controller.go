@@ -7,9 +7,10 @@ import (
 
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
+	"github.com/PBL-Kelompok6-WishWash/backend/utils"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/go-playground/validator/v10"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type KaryawanInput struct {
@@ -116,7 +117,7 @@ func (ctrl *karyawanController) Create(c *gin.Context) {
 		UserID:             user.IDUser,
 		NamaKaryawan:       input.NamaKaryawan,
 		NoTelp:             input.NoTelp,
-		FotoKaryawan:       input.FotoKaryawan,
+		FotoKaryawan:       "",
 		PlatNomor:          input.PlatNomor,
 		JenisKendaraan:     input.JenisKendaraan,
 		StatusKetersediaan: input.StatusKetersediaan,
@@ -125,6 +126,17 @@ func (ctrl *karyawanController) Create(c *gin.Context) {
 	if err := ctrl.karyawanRepo.CreateKaryawan(&karyawan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan profil karyawan"})
 		return
+	}
+
+	if input.FotoKaryawan != "" {
+		entityFolder := utils.BuildEntityFolder(karyawan.IDKaryawan, input.NamaKaryawan)
+		fotoPath, err := utils.SaveBase64Image(input.FotoKaryawan, "karyawan", entityFolder, "profile_karyawan_"+input.NamaKaryawan)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format foto karyawan tidak valid atau gagal disimpan"})
+			return
+		}
+		karyawan.FotoKaryawan = fotoPath
+		_ = ctrl.karyawanRepo.Update(&karyawan)
 	}
 
 	// 4. Ambil data lengkap (untuk preload User & Role)
@@ -184,14 +196,38 @@ func (ctrl *karyawanController) Update(c *gin.Context) {
 	}
 
 	// Update Karyawan
+	namaKaryawan := karyawan.NamaKaryawan
 	if input.NamaKaryawan != nil {
+		namaKaryawan = *input.NamaKaryawan
 		karyawan.NamaKaryawan = *input.NamaKaryawan
 	}
 	if input.NoTelp != nil {
 		karyawan.NoTelp = *input.NoTelp
 	}
 	if input.FotoKaryawan != nil {
-		karyawan.FotoKaryawan = *input.FotoKaryawan
+		oldFotoPath := karyawan.FotoKaryawan
+		entityFolder := utils.BuildEntityFolder(karyawan.IDKaryawan, namaKaryawan)
+
+		if *input.FotoKaryawan == "" {
+			// User klik X lalu simpan (hapus foto)
+			karyawan.FotoKaryawan = ""
+			if oldFotoPath != "" {
+				utils.DeleteImageFile(oldFotoPath)
+			}
+		} else {
+			// User upload foto baru
+			fotoPath, err := utils.SaveBase64Image(*input.FotoKaryawan, "karyawan", entityFolder, "profile_karyawan_"+namaKaryawan)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal menyimpan foto baru"})
+				return
+			}
+			karyawan.FotoKaryawan = fotoPath
+
+			// Hapus file lama jika path-nya berubah
+			if oldFotoPath != "" && oldFotoPath != fotoPath {
+				utils.DeleteImageFile(oldFotoPath)
+			}
+		}
 	}
 	if input.PlatNomor != nil {
 		karyawan.PlatNomor = *input.PlatNomor
@@ -220,6 +256,10 @@ func (ctrl *karyawanController) Delete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Karyawan tidak ditemukan"})
 		return
 	}
+
+	// Hapus seluruh folder entity dari disk (bersih sekaligus)
+	entityFolder := utils.BuildEntityFolder(karyawan.IDKaryawan, karyawan.NamaKaryawan)
+	utils.DeleteImageFolder("karyawan", entityFolder)
 
 	if err := ctrl.karyawanRepo.Delete(karyawan.IDKaryawan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus profil karyawan"})

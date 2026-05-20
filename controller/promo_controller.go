@@ -7,6 +7,7 @@ import (
 
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
+	"github.com/PBL-Kelompok6-WishWash/backend/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -85,7 +86,7 @@ func (c *PromoController) Create(ctx *gin.Context) {
 		TglMulai:         tglMulai,
 		TglBerakhir:      tglBerakhir,
 		StatusPromo:      input.StatusPromo,
-		GambarPromo:      input.GambarPromo,
+		GambarPromo:      "", // Simpan kosong dulu
 	}
 
 	newPromo, err := c.promoRepo.Create(promo)
@@ -93,6 +94,19 @@ func (c *PromoController) Create(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan data promo"})
 		return
 	}
+
+	// Setelah dapet ID, simpan gambar ke subfolder
+	if input.GambarPromo != "" {
+		entityFolder := utils.BuildEntityFolder(newPromo.IDPromo, newPromo.NamaPromo)
+		gambarPath, err := utils.SaveBase64Image(input.GambarPromo, "promo", entityFolder, "promo_"+input.KodePromo)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Format gambar promo tidak valid atau gagal disimpan"})
+			return
+		}
+		newPromo.GambarPromo = gambarPath
+		newPromo, _ = c.promoRepo.Update(newPromo)
+	}
+
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Data Promo Berhasil Disimpan", "data": newPromo})
 }
 
@@ -129,7 +143,9 @@ func (c *PromoController) Update(ctx *gin.Context) {
 		return
 	}
 
+	kodePromo := promo.KodePromo
 	if input.KodePromo != nil {
+		kodePromo = *input.KodePromo
 		promo.KodePromo = *input.KodePromo
 	}
 	if input.NamaPromo != nil {
@@ -170,7 +186,29 @@ func (c *PromoController) Update(ctx *gin.Context) {
 		promo.StatusPromo = *input.StatusPromo
 	}
 	if input.GambarPromo != nil {
-		promo.GambarPromo = *input.GambarPromo
+		oldGambarPath := promo.GambarPromo
+		entityFolder := utils.BuildEntityFolder(promo.IDPromo, promo.NamaPromo)
+
+		if *input.GambarPromo == "" {
+			// User klik X lalu simpan (hapus gambar)
+			promo.GambarPromo = ""
+			if oldGambarPath != "" {
+				utils.DeleteImageFile(oldGambarPath)
+			}
+		} else {
+			// User upload gambar baru
+			gambarPath, err := utils.SaveBase64Image(*input.GambarPromo, "promo", entityFolder, "promo_"+kodePromo)
+			if err != nil {
+				ctx.JSON(http.StatusBadRequest, gin.H{"error": "Gagal menyimpan gambar promo baru"})
+				return
+			}
+			promo.GambarPromo = gambarPath
+
+			// Hapus file lama jika path-nya berubah
+			if oldGambarPath != "" && oldGambarPath != gambarPath {
+				utils.DeleteImageFile(oldGambarPath)
+			}
+		}
 	}
 
 	updated, err := c.promoRepo.Update(promo)
@@ -193,6 +231,10 @@ func (c *PromoController) Delete(ctx *gin.Context) {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Data promo tidak ditemukan"})
 		return
 	}
+
+	// Hapus seluruh folder entity dari disk (bersih sekaligus)
+	entityFolder := utils.BuildEntityFolder(promo.IDPromo, promo.NamaPromo)
+	utils.DeleteImageFolder("promo", entityFolder)
 
 	if err := c.promoRepo.Delete(promo); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus data promo"})

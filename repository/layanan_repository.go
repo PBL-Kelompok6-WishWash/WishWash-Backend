@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"log"
+
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"gorm.io/gorm"
 )
@@ -49,21 +51,50 @@ func (r *layananRepository) Create(layanan *model.Layanan) error {
 }
 
 func (r *layananRepository) Update(layanan *model.Layanan) error {
-	// Updates the parent fields
-	return r.db.Save(layanan).Error
+	// Updates the parent fields, ignoring associations to avoid FK constraint errors during save
+	return r.db.Omit("ReferensiStatus", "PaketLayanan").Save(layanan).Error
 }
 
 func (r *layananRepository) UpdateStatusLayanan(layananID uint, statuses []model.ReferensiStatusLayanan) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// 1. Delete all existing statuses for this Layanan
-		if err := tx.Where("id_layanan = ?", layananID).Delete(&model.ReferensiStatusLayanan{}).Error; err != nil {
+		// 1. Dapatkan status yang ada saat ini di DB
+		var existing []model.ReferensiStatusLayanan
+		if err := tx.Where("id_layanan = ?", layananID).Find(&existing).Error; err != nil {
 			return err
 		}
 
-		// 2. Insert the new ones if there are any
-		if len(statuses) > 0 {
-			if err := tx.Create(&statuses).Error; err != nil {
-				return err
+		existingMap := make(map[string]model.ReferensiStatusLayanan)
+		for _, s := range existing {
+			existingMap[s.NamaStatus] = s
+		}
+
+		keptNames := make(map[string]bool)
+
+		// 2. Loop data input untuk create atau update
+		for _, s := range statuses {
+			keptNames[s.NamaStatus] = true
+			if ext, found := existingMap[s.NamaStatus]; found {
+				// Update urutan jika ada perubahan
+				ext.UrutanTahap = s.UrutanTahap
+				if err := tx.Save(&ext).Error; err != nil {
+					return err
+				}
+			} else {
+				// Tambah baru
+				s.LayananID = layananID
+				if err := tx.Create(&s).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		// 3. Hapus status yang tidak ada lagi di input
+		for _, s := range existing {
+			if !keptNames[s.NamaStatus] {
+				// Jika gagal karena constraint, biarkan saja agar data riwayat tidak terputus
+				if err := tx.Delete(&s).Error; err != nil {
+					log.Printf("⚠️ WARNING: Gagal menghapus referensi_status_layanan ID %d (%s) karena masih digunakan oleh riwayat order: %v\n", s.IDReferensiStatus, s.NamaStatus, err)
+				}
 			}
 		}
 		return nil
@@ -72,15 +103,45 @@ func (r *layananRepository) UpdateStatusLayanan(layananID uint, statuses []model
 
 func (r *layananRepository) UpdatePaketLayanan(layananID uint, pakets []model.PaketLayanan) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// 1. Delete all existing pakets for this Layanan
-		if err := tx.Where("id_layanan = ?", layananID).Delete(&model.PaketLayanan{}).Error; err != nil {
+		// 1. Dapatkan paket yang ada saat ini di DB
+		var existing []model.PaketLayanan
+		if err := tx.Where("id_layanan = ?", layananID).Find(&existing).Error; err != nil {
 			return err
 		}
 
-		// 2. Insert the new ones if there are any
-		if len(pakets) > 0 {
-			if err := tx.Create(&pakets).Error; err != nil {
-				return err
+		existingMap := make(map[string]model.PaketLayanan)
+		for _, p := range existing {
+			existingMap[p.NamaPaket] = p
+		}
+
+		keptNames := make(map[string]bool)
+
+		// 2. Loop data input untuk create atau update
+		for _, p := range pakets {
+			keptNames[p.NamaPaket] = true
+			if ext, found := existingMap[p.NamaPaket]; found {
+				// Update detail paket
+				ext.DurasiJam = p.DurasiJam
+				ext.BiayaTambahan = p.BiayaTambahan
+				if err := tx.Save(&ext).Error; err != nil {
+					return err
+				}
+			} else {
+				// Tambah baru
+				p.LayananID = layananID
+				if err := tx.Create(&p).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		// 3. Hapus paket yang tidak ada lagi di input
+		for _, p := range existing {
+			if !keptNames[p.NamaPaket] {
+				// Jika gagal karena constraint, biarkan saja agar data order lama tidak terputus
+				if err := tx.Delete(&p).Error; err != nil {
+					log.Printf("⚠️ WARNING: Gagal menghapus paket_layanan ID %d (%s) karena masih digunakan oleh order: %v\n", p.IDPaketLayanan, p.NamaPaket, err)
+				}
 			}
 		}
 		return nil

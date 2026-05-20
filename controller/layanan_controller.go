@@ -7,6 +7,7 @@ import (
 
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
+	"github.com/PBL-Kelompok6-WishWash/backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
@@ -95,10 +96,10 @@ func (ctrl *layananController) Create(c *gin.Context) {
 		return
 	}
 
-	// Buat objek Layanan
+	// Buat objek Layanan (tanpa gambar dulu agar dapet ID)
 	layanan := model.Layanan{
 		NamaLayanan:    input.NamaLayanan,
-		GambarLayanan:  input.GambarLayanan,
+		GambarLayanan:  "",
 		JenisSatuan:    input.JenisSatuan,
 		HargaPerSatuan: input.HargaPerSatuan,
 		StatusLayanan:    input.StatusLayanan,
@@ -130,6 +131,18 @@ func (ctrl *layananController) Create(c *gin.Context) {
 	if err := ctrl.layananRepo.Create(&layanan); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan layanan"})
 		return
+	}
+
+	// Simpan foto ke subfolder per-entity (sekarang ID sudah ada)
+	if input.GambarLayanan != "" {
+		entityFolder := utils.BuildEntityFolder(layanan.IDLayanan, input.NamaLayanan)
+		gambarPath, err := utils.SaveBase64Image(input.GambarLayanan, "layanan", entityFolder, "layanan_"+input.NamaLayanan)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format gambar layanan tidak valid atau gagal disimpan"})
+			return
+		}
+		layanan.GambarLayanan = gambarPath
+		_ = ctrl.layananRepo.Update(&layanan)
 	}
 
 	// Ambil data lengkap untuk kembalian
@@ -166,11 +179,35 @@ func (ctrl *layananController) Update(c *gin.Context) {
 	}
 
 	// Update data utama
+	namaLayanan := layanan.NamaLayanan
 	if input.NamaLayanan != nil {
+		namaLayanan = *input.NamaLayanan
 		layanan.NamaLayanan = *input.NamaLayanan
 	}
 	if input.GambarLayanan != nil {
-		layanan.GambarLayanan = *input.GambarLayanan
+		oldGambarPath := layanan.GambarLayanan
+		entityFolder := utils.BuildEntityFolder(layanan.IDLayanan, namaLayanan)
+
+		if *input.GambarLayanan == "" {
+			// User sengaja menghapus gambar
+			layanan.GambarLayanan = ""
+			if oldGambarPath != "" {
+				utils.DeleteImageFile(oldGambarPath)
+			}
+		} else {
+			// User mengupload gambar baru (base64)
+			gambarPath, err := utils.SaveBase64Image(*input.GambarLayanan, "layanan", entityFolder, "layanan_"+namaLayanan)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal menyimpan gambar baru"})
+				return
+			}
+			layanan.GambarLayanan = gambarPath
+
+			// Hapus file lama jika path-nya berubah
+			if oldGambarPath != "" && oldGambarPath != gambarPath {
+				utils.DeleteImageFile(oldGambarPath)
+			}
+		}
 	}
 	if input.JenisSatuan != nil {
 		layanan.JenisSatuan = *input.JenisSatuan
@@ -233,11 +270,15 @@ func (ctrl *layananController) Update(c *gin.Context) {
 func (ctrl *layananController) Delete(c *gin.Context) {
 	id := parseLayananID(c.Param("id"))
 
-	_, err := ctrl.layananRepo.FindByID(id)
+	layanan, err := ctrl.layananRepo.FindByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Layanan tidak ditemukan"})
 		return
 	}
+
+	// Hapus seluruh folder entity dari disk (bersih sekaligus)
+	entityFolder := utils.BuildEntityFolder(layanan.IDLayanan, layanan.NamaLayanan)
+	utils.DeleteImageFolder("layanan", entityFolder)
 
 	if err := ctrl.layananRepo.Delete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus layanan"})
