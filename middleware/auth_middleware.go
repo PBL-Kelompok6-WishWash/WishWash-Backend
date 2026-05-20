@@ -94,8 +94,8 @@ func AdminOnly() gin.HandlerFunc {
 	}
 }
 
-// KaryawanOnly adalah middleware untuk memastikan hanya Karyawan (RoleID = 2) atau Admin (RoleID = 1) yang bisa mengakses.
-func KaryawanOrAdmin() gin.HandlerFunc {
+// KaryawanOnly adalah middleware untuk memastikan hanya Karyawan (RoleID = 2) yang bisa mengakses.
+func KaryawanOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleData, exists := c.Get("id_role")
 		if !exists {
@@ -106,9 +106,9 @@ func KaryawanOrAdmin() gin.HandlerFunc {
 
 		roleID := int(roleData.(float64))
 
-		// Karyawan (2) atau Admin (1) boleh masuk (Misal untuk update status pesanan)
-		if roleID != 1 && roleID != 2 {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Akses Ditolak! 🛑 Rute ini khusus untuk Admin atau Karyawan."})
+		// Hanya Karyawan (2) yang boleh masuk
+		if roleID != 2 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Akses Ditolak! 🛑 Rute ini khusus untuk Karyawan."})
 			c.Abort()
 			return
 		}
