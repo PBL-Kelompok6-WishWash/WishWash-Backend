@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"gorm.io/gorm"
 )
@@ -20,7 +22,45 @@ func NewOrderRepository(db *gorm.DB) OrderRepository {
 }
 
 func (r *orderRepository) Create(order *model.Order) error {
-	return r.db.Create(order).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+
+		var refStatus model.ReferensiStatusLayanan
+		err := tx.Where("id_layanan = ? AND urutan_tahap = ?", order.LayananID, 1).First(&refStatus).Error
+		if err != nil {
+			err = tx.Where("id_layanan = ?", order.LayananID).Order("urutan_tahap asc").First(&refStatus).Error
+		}
+
+		if err == nil {
+			history := model.RiwayatStatusDetail{
+				ReferensiStatusID: refStatus.IDReferensiStatus,
+				OrderID:           order.IDOrder,
+				KaryawanID:        nil,
+				WaktuUpdate:       time.Now(),
+			}
+			if err := tx.Create(&history).Error; err != nil {
+				return err
+			}
+		}
+
+		// Preload relationships back into the order struct after successful creation
+		err = tx.Preload("PaketLayanan").
+			Preload("AlamatPengambilan").
+			Preload("AlamatPenyerahan").
+			Preload("Parfum").
+			Preload("Layanan.ReferensiStatus").
+			Preload("Karyawan").
+			Preload("RiwayatStatusDetail.ReferensiStatus").
+			Preload("Pembayaran").
+			First(order, order.IDOrder).Error
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 func (r *orderRepository) FindAllByPelangganID(pelangganID uint) ([]model.Order, error) {
@@ -29,8 +69,10 @@ func (r *orderRepository) FindAllByPelangganID(pelangganID uint) ([]model.Order,
 		Preload("AlamatPengambilan").
 		Preload("AlamatPenyerahan").
 		Preload("Parfum").
-		Preload("Layanan").
+		Preload("Layanan.ReferensiStatus").
 		Preload("Karyawan").
+		Preload("RiwayatStatusDetail.ReferensiStatus").
+		Preload("Pembayaran").
 		Where("id_pelanggan = ?", pelangganID).
 		Order("id_order desc").
 		Find(&orders).Error
@@ -43,8 +85,10 @@ func (r *orderRepository) FindByID(idOrder uint) (*model.Order, error) {
 		Preload("AlamatPengambilan").
 		Preload("AlamatPenyerahan").
 		Preload("Parfum").
-		Preload("Layanan").
+		Preload("Layanan.ReferensiStatus").
 		Preload("Karyawan").
+		Preload("RiwayatStatusDetail.ReferensiStatus").
+		Preload("Pembayaran").
 		First(&order, idOrder).Error
 	if err != nil {
 		return nil, err

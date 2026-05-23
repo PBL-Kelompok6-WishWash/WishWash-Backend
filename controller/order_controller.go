@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"fmt"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +11,16 @@ import (
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
 	"github.com/gin-gonic/gin"
 )
+
+func generateKodeOrder() string {
+	rand.Seed(time.Now().UnixNano())
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	result := make([]byte, 6)
+	for i := range result {
+		result[i] = chars[rand.Intn(len(chars))]
+	}
+	return fmt.Sprintf("WW-%s", string(result))
+}
 
 type OrderController interface {
 	GetOrdersPelanggan(c *gin.Context)
@@ -68,7 +80,7 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	var input struct {
 		PaketLayananID      *uint   `json:"id_paket_layanan"`
 		AlamatPengambilanID uint    `json:"id_alamat_pengambilan" binding:"required"`
-		AlamatPenyerahanID  uint    `json:"id_alamat_penyerahan" binding:"required"`
+		AlamatPenyerahanID  *uint   `json:"id_alamat_penyerahan"`
 		ParfumID            uint    `json:"id_parfum" binding:"required"`
 		LayananID           uint    `json:"id_layanan" binding:"required"`
 		KeteranganLokasi    string  `json:"keterangan_lokasi"`
@@ -76,7 +88,7 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		TipeLogistik        string  `json:"tipe_logistik" binding:"required"`
 		HargaSaatIni        float64 `json:"harga_saat_ini" binding:"required"`
 		Kuantitas           float64 `json:"kuantitas"`
-		TotalBayar          float64 `json:"total_bayar" binding:"required"`
+		TotalBayar          float64 `json:"total_bayar"`
 		CatatanOrder        string  `json:"catatan_order"`
 	}
 
@@ -98,6 +110,7 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 
 	order := model.Order{
 		PelangganID:         pelangganID,
+		KodeOrder:           generateKodeOrder(),
 		PaketLayananID:      input.PaketLayananID,
 		AlamatPengambilanID: input.AlamatPengambilanID,
 		AlamatPenyerahanID:  input.AlamatPenyerahanID,

@@ -4,10 +4,11 @@ import "time"
 
 type Order struct {
 	IDOrder             uint      `gorm:"primaryKey;autoIncrement;column:id_order" json:"id_order"`
+	KodeOrder           string    `gorm:"type:varchar(50);column:kode_order;unique" json:"kode_order"`
 	PaketLayananID      *uint     `gorm:"column:id_paket_layanan" json:"id_paket_layanan"` // Bisa null jika layanan tidak punya paket
 	PelangganID         uint      `gorm:"not null;column:id_pelanggan" json:"id_pelanggan"` // Sesuai kesepakatan: id_pelanggan (bukan id_customer)
 	AlamatPengambilanID uint      `gorm:"not null;column:id_alamat_pengambilan" json:"id_alamat_pengambilan"`
-	AlamatPenyerahanID  uint      `gorm:"not null;column:id_alamat_penyerahan" json:"id_alamat_penyerahan"`
+	AlamatPenyerahanID  *uint     `gorm:"column:id_alamat_penyerahan" json:"id_alamat_penyerahan"`
 	ParfumID            uint      `gorm:"not null;column:id_parfum" json:"id_parfum"`
 	LayananID           uint      `gorm:"not null;column:id_layanan" json:"id_layanan"`
 	KaryawanID          *uint     `gorm:"column:id_karyawan" json:"id_karyawan"` // Pake pointer (*) karena kurir mungkin belum di-assign saat order masuk
@@ -28,7 +29,9 @@ type Order struct {
 	AlamatPenyerahan  Alamat       `gorm:"foreignKey:AlamatPenyerahanID" json:"AlamatPenyerahan"`
 	Parfum            Parfum       `gorm:"foreignKey:ParfumID" json:"Parfum"`
 	Layanan           Layanan      `gorm:"foreignKey:LayananID" json:"Layanan"`
-	Karyawan          Karyawan     `gorm:"foreignKey:KaryawanID" json:"Karyawan"`
+	Karyawan            Karyawan              `gorm:"foreignKey:KaryawanID" json:"Karyawan"`
+	RiwayatStatusDetail []RiwayatStatusDetail `gorm:"foreignKey:OrderID" json:"RiwayatStatusDetail"`
+	Pembayaran          *Pembayaran           `gorm:"foreignKey:OrderID" json:"Pembayaran"`
 }
 
 func (Order) TableName() string {
