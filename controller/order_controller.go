@@ -71,13 +71,17 @@ func (ctrl *orderController) GetOrdersPelanggan(c *gin.Context) {
 }
 
 func (ctrl *orderController) CreateOrder(c *gin.Context) {
-	pelangganID, err := ctrl.getPelangganIDFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Pelanggan tidak ditemukan"})
-		return
+	var pelangganID uint
+	var err error
+
+	roleData, exists := c.Get("id_role")
+	roleID := 3 // default to customer
+	if exists {
+		roleID = int(roleData.(float64))
 	}
 
 	var input struct {
+		PelangganID         *uint   `json:"id_pelanggan"`
 		PaketLayananID      *uint   `json:"id_paket_layanan"`
 		AlamatPengambilanID uint    `json:"id_alamat_pengambilan" binding:"required"`
 		AlamatPenyerahanID  *uint   `json:"id_alamat_penyerahan"`
@@ -95,6 +99,20 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Input tidak valid: " + err.Error()})
 		return
+	}
+
+	if roleID == 1 || roleID == 2 {
+		if input.PelangganID == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID Pelanggan wajib diisi untuk Karyawan/Admin"})
+			return
+		}
+		pelangganID = *input.PelangganID
+	} else {
+		pelangganID, err = ctrl.getPelangganIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Pelanggan tidak ditemukan"})
+			return
+		}
 	}
 
 	// Parse jadwal pickup

@@ -40,10 +40,30 @@ func (ctrl *alamatController) getPelangganIDFromContext(c *gin.Context) (uint, e
 }
 
 func (ctrl *alamatController) GetAlamatPelanggan(c *gin.Context) {
-	pelangganID, err := ctrl.getPelangganIDFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Pelanggan tidak ditemukan"})
-		return
+	var pelangganID uint
+	var err error
+
+	roleData, exists := c.Get("id_role")
+	roleID := 3 // default to customer
+	if exists {
+		roleID = int(roleData.(float64))
+	}
+
+	if (roleID == 1 || roleID == 2) && c.Query("id_pelanggan") != "" {
+		idParam := c.Query("id_pelanggan")
+		idPel, err := strconv.ParseUint(idParam, 10, 32)
+		if err == nil {
+			pelangganID = uint(idPel)
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID Pelanggan tidak valid"})
+			return
+		}
+	} else {
+		pelangganID, err = ctrl.getPelangganIDFromContext(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Pelanggan tidak ditemukan"})
+			return
+		}
 	}
 
 	alamats, err := ctrl.alamatRepo.FindAllByPelangganID(pelangganID)
