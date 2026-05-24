@@ -94,6 +94,13 @@ func main() {
         layananPubRoutes.GET("", layananController.GetAll)
     }
 
+    // Rute Pelanggan Terotentikasi (General Authenticated Users, e.g. Karyawan/Kasir)
+    pelangganPubRoutes := api.Group("/pelanggan")
+    pelangganPubRoutes.Use(middleware.JWTAuthMiddleware())
+    {
+        pelangganPubRoutes.GET("", pelangganController.GetAll)
+    }
+
     // B. Rute Khusus Admin (Hanya Role 1 yang bisa akses)
     adminRoutes := api.Group("/admin")
     adminRoutes.Use(middleware.JWTAuthMiddleware(), middleware.AdminOnly()) // Satpam 1 & 2
