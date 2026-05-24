@@ -47,6 +47,7 @@ func (r *orderRepository) Create(order *model.Order) error {
 
 		// Preload relationships back into the order struct after successful creation
 		err = tx.Preload("PaketLayanan").
+			Preload("Pelanggan").
 			Preload("AlamatPengambilan").
 			Preload("AlamatPenyerahan").
 			Preload("Parfum").
@@ -54,6 +55,7 @@ func (r *orderRepository) Create(order *model.Order) error {
 			Preload("Karyawan").
 			Preload("RiwayatStatusDetail.ReferensiStatus").
 			Preload("Pembayaran").
+			Preload("PromoOrder.Promo").
 			First(order, order.IDOrder).Error
 		if err != nil {
 			return err
@@ -66,6 +68,7 @@ func (r *orderRepository) Create(order *model.Order) error {
 func (r *orderRepository) FindAllByPelangganID(pelangganID uint) ([]model.Order, error) {
 	var orders []model.Order
 	err := r.db.Preload("PaketLayanan").
+		Preload("Pelanggan").
 		Preload("AlamatPengambilan").
 		Preload("AlamatPenyerahan").
 		Preload("Parfum").
@@ -73,6 +76,7 @@ func (r *orderRepository) FindAllByPelangganID(pelangganID uint) ([]model.Order,
 		Preload("Karyawan").
 		Preload("RiwayatStatusDetail.ReferensiStatus").
 		Preload("Pembayaran").
+		Preload("PromoOrder.Promo").
 		Where("id_pelanggan = ?", pelangganID).
 		Order("id_order desc").
 		Find(&orders).Error
@@ -82,6 +86,7 @@ func (r *orderRepository) FindAllByPelangganID(pelangganID uint) ([]model.Order,
 func (r *orderRepository) FindByID(idOrder uint) (*model.Order, error) {
 	var order model.Order
 	err := r.db.Preload("PaketLayanan").
+		Preload("Pelanggan").
 		Preload("AlamatPengambilan").
 		Preload("AlamatPenyerahan").
 		Preload("Parfum").
@@ -89,6 +94,7 @@ func (r *orderRepository) FindByID(idOrder uint) (*model.Order, error) {
 		Preload("Karyawan").
 		Preload("RiwayatStatusDetail.ReferensiStatus").
 		Preload("Pembayaran").
+		Preload("PromoOrder.Promo").
 		First(&order, idOrder).Error
 	if err != nil {
 		return nil, err

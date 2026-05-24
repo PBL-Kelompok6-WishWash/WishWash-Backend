@@ -23,15 +23,16 @@ type Order struct {
 	CatatanOrder     string    `gorm:"type:text;column:catatan_order" json:"catatan_order"`
 
 	// --- Relasi GORM ---
-	PaketLayanan      PaketLayanan `gorm:"foreignKey:PaketLayananID" json:"PaketLayanan"`
-	Pelanggan         Pelanggan    `gorm:"foreignKey:PelangganID" json:"Pelanggan"`
-	AlamatPengambilan Alamat       `gorm:"foreignKey:AlamatPengambilanID" json:"AlamatPengambilan"`
-	AlamatPenyerahan  Alamat       `gorm:"foreignKey:AlamatPenyerahanID" json:"AlamatPenyerahan"`
-	Parfum            Parfum       `gorm:"foreignKey:ParfumID" json:"Parfum"`
-	Layanan           Layanan      `gorm:"foreignKey:LayananID" json:"Layanan"`
+	PaketLayanan        PaketLayanan          `gorm:"foreignKey:PaketLayananID" json:"PaketLayanan"`
+	Pelanggan           Pelanggan             `gorm:"foreignKey:PelangganID" json:"Pelanggan"`
+	AlamatPengambilan   Alamat                `gorm:"foreignKey:AlamatPengambilanID" json:"AlamatPengambilan"`
+	AlamatPenyerahan    Alamat                `gorm:"foreignKey:AlamatPenyerahanID" json:"AlamatPenyerahan"`
+	Parfum              Parfum                `gorm:"foreignKey:ParfumID" json:"Parfum"`
+	Layanan             Layanan               `gorm:"foreignKey:LayananID" json:"Layanan"`
 	Karyawan            Karyawan              `gorm:"foreignKey:KaryawanID" json:"Karyawan"`
 	RiwayatStatusDetail []RiwayatStatusDetail `gorm:"foreignKey:OrderID" json:"RiwayatStatusDetail"`
 	Pembayaran          *Pembayaran           `gorm:"foreignKey:OrderID" json:"Pembayaran"`
+	PromoOrder          []PromoOrder          `gorm:"foreignKey:OrderID" json:"PromoOrder"`
 }
 
 func (Order) TableName() string {
