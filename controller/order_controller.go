@@ -83,12 +83,12 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	var input struct {
 		PelangganID         *uint   `json:"id_pelanggan"`
 		PaketLayananID      *uint   `json:"id_paket_layanan"`
-		AlamatPengambilanID uint    `json:"id_alamat_pengambilan" binding:"required"`
+		AlamatPengambilanID *uint   `json:"id_alamat_pengambilan"`
 		AlamatPenyerahanID  *uint   `json:"id_alamat_penyerahan"`
 		ParfumID            uint    `json:"id_parfum" binding:"required"`
 		LayananID           uint    `json:"id_layanan" binding:"required"`
 		KeteranganLokasi    string  `json:"keterangan_lokasi"`
-		JadwalPickup        string  `json:"jadwal_pickup" binding:"required"` // Format: YYYY-MM-DD HH:MM
+		JadwalPickup        string  `json:"jadwal_pickup"` // Format: YYYY-MM-DD HH:MM
 		TipeLogistik        string  `json:"tipe_logistik" binding:"required"`
 		HargaSaatIni        float64 `json:"harga_saat_ini" binding:"required"`
 		Kuantitas           float64 `json:"kuantitas"`
@@ -99,6 +99,17 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Input tidak valid: " + err.Error()})
 		return
+	}
+
+	if input.TipeLogistik == "Courier Delivery" {
+		if input.AlamatPengambilanID == nil || *input.AlamatPengambilanID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Alamat pengambilan wajib diisi untuk pengiriman kurir"})
+			return
+		}
+		if input.JadwalPickup == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Jadwal pickup wajib diisi untuk pengiriman kurir"})
+			return
+		}
 	}
 
 	if roleID == 1 || roleID == 2 {
@@ -115,15 +126,18 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		}
 	}
 
-	// Parse jadwal pickup
-	pickupTime, err := time.Parse("2006-01-02 15:04", input.JadwalPickup)
-	if err != nil {
-		// Fallback to try RFC3339
-		pickupTime, err = time.Parse(time.RFC3339, input.JadwalPickup)
+	var pickupTime *time.Time
+	if input.JadwalPickup != "" {
+		parsedTime, err := time.Parse("2006-01-02 15:04", input.JadwalPickup)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Format jadwal pickup salah. Harus YYYY-MM-DD HH:MM"})
-			return
+			// Fallback to try RFC3339
+			parsedTime, err = time.Parse(time.RFC3339, input.JadwalPickup)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Format jadwal pickup salah. Harus YYYY-MM-DD HH:MM"})
+				return
+			}
 		}
+		pickupTime = &parsedTime
 	}
 
 	order := model.Order{
