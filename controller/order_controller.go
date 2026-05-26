@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/PBL-Kelompok6-WishWash/backend/config"
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
 	"github.com/gin-gonic/gin"
@@ -26,15 +27,17 @@ type OrderController interface {
 	GetOrdersPelanggan(c *gin.Context)
 	CreateOrder(c *gin.Context)
 	GetOrderByID(c *gin.Context)
+	UpdateOrder(c *gin.Context)
 }
 
 type orderController struct {
 	orderRepo     repository.OrderRepository
 	pelangganRepo repository.PelangganRepository
+	karyawanRepo  repository.KaryawanRepository
 }
 
-func NewOrderController(oRepo repository.OrderRepository, pRepo repository.PelangganRepository) OrderController {
-	return &orderController{oRepo, pRepo}
+func NewOrderController(oRepo repository.OrderRepository, pRepo repository.PelangganRepository, kRepo repository.KaryawanRepository) OrderController {
+	return &orderController{oRepo, pRepo, kRepo}
 }
 
 func (ctrl *orderController) getPelangganIDFromContext(c *gin.Context) (uint, error) {
@@ -51,13 +54,28 @@ func (ctrl *orderController) getPelangganIDFromContext(c *gin.Context) (uint, er
 }
 
 func (ctrl *orderController) GetOrdersPelanggan(c *gin.Context) {
-	pelangganID, err := ctrl.getPelangganIDFromContext(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Pelanggan tidak ditemukan"})
-		return
+	roleData, exists := c.Get("id_role")
+	roleID := 3 // default to customer
+	if exists {
+		roleID = int(roleData.(float64))
 	}
 
-	orders, err := ctrl.orderRepo.FindAllByPelangganID(pelangganID)
+	var orders []model.Order
+	var err error
+
+	if roleID == 1 || roleID == 2 {
+		// Admin atau Karyawan: ambil semua order
+		orders, err = ctrl.orderRepo.FindAll()
+	} else {
+		// Pelanggan: ambil order milik pelanggan itu saja
+		pelangganID, errPelanggan := ctrl.getPelangganIDFromContext(c)
+		if errPelanggan != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Pelanggan tidak ditemukan"})
+			return
+		}
+		orders, err = ctrl.orderRepo.FindAllByPelangganID(pelangganID)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data pesanan"})
 		return
@@ -188,5 +206,147 @@ func (ctrl *orderController) GetOrderByID(c *gin.Context) {
 		"success": true,
 		"message": "Data pesanan berhasil diambil",
 		"data":    order,
+	})
+}
+
+func (ctrl *orderController) UpdateOrder(c *gin.Context) {
+	idOrderParam := c.Param("id")
+	idOrder, err := strconv.ParseUint(idOrderParam, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID Order tidak valid"})
+		return
+	}
+
+	// 1. Dapatkan KaryawanID dari UserID yang terotentikasi (jika pengguna adalah Karyawan)
+	var karyawanID *uint
+	userIDFloat, exists := c.Get("id_user")
+	if exists {
+		userID := uint(userIDFloat.(float64))
+		karyawan, errKaryawan := ctrl.karyawanRepo.FindByUserID(userID)
+		if errKaryawan == nil {
+			karyawanID = &karyawan.IDKaryawan
+		}
+	}
+
+	// 2. Ambil data order existing
+	order, err := ctrl.orderRepo.FindByID(uint(idOrder))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pesanan tidak ditemukan"})
+		return
+	}
+
+	// 3. Bind input JSON
+	var input struct {
+		Status           string   `json:"status"`            // Contoh: "Diproses", "Selesai"
+		Kuantitas        *float64 `json:"kuantitas"`         // Contoh: 3.5 (dalam kg)
+		TotalBayar       *float64 `json:"total_bayar"`       // Total bayar baru jika diubah
+		StatusPembayaran string   `json:"status_pembayaran"` // Contoh: "Paid", "Lunas", "Unpaid"
+		MetodeBayar      string   `json:"metode_bayar"`      // Contoh: "Cash", "QRIS"
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Input tidak valid: " + err.Error()})
+		return
+	}
+
+	// 4. Update status jika dikirim
+	if input.Status != "" {
+		// Cari referensi status layanan yang cocok berdasarkan id_layanan dan nama_status
+		var refStatus model.ReferensiStatusLayanan
+		errRef := config.DB.Where("id_layanan = ? AND nama_status = ?", order.LayananID, input.Status).First(&refStatus).Error
+		if errRef != nil {
+			// Coba cari secara umum/case-insensitive atau toleran
+			errRef = config.DB.Where("id_layanan = ? AND LOWER(nama_status) = LOWER(?)", order.LayananID, input.Status).First(&refStatus).Error
+		}
+
+		if errRef == nil {
+			// Buat riwayat status detail baru
+			history := model.RiwayatStatusDetail{
+				ReferensiStatusID: refStatus.IDReferensiStatus,
+				OrderID:           order.IDOrder,
+				KaryawanID:        karyawanID,
+				WaktuUpdate:       time.Now(),
+			}
+			if err := config.DB.Create(&history).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan riwayat status: " + err.Error()})
+				return
+			}
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Status '" + input.Status + "' tidak ditemukan untuk layanan ini"})
+			return
+		}
+	}
+
+	// 5. Update kuantitas/weight jika dikirim
+	if input.Kuantitas != nil {
+		order.Kuantitas = *input.Kuantitas
+		// Hitung ulang total bayar jika input.TotalBayar tidak dikirim secara manual
+		if input.TotalBayar != nil {
+			order.TotalBayar = *input.TotalBayar
+		} else {
+			order.TotalBayar = order.Kuantitas * order.HargaSaatIni
+		}
+	} else if input.TotalBayar != nil {
+		order.TotalBayar = *input.TotalBayar
+	}
+
+	// Jika Karyawan meng-update order, set KaryawanID di order
+	if karyawanID != nil {
+		order.KaryawanID = karyawanID
+	}
+
+	// Simpan perubahan order ke DB
+	if err := ctrl.orderRepo.Update(order); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate order: " + err.Error()})
+		return
+	}
+
+	// 6. Update Pembayaran jika statusPembayaran dikirim
+	if input.StatusPembayaran != "" {
+		var pembayaran model.Pembayaran
+		errPem := config.DB.Where("id_order = ?", order.IDOrder).First(&pembayaran).Error
+		if errPem == nil {
+			// Update pembayaran yang ada
+			pembayaran.StatusPembayaran = input.StatusPembayaran
+			pembayaran.KaryawanID = karyawanID
+			if input.MetodeBayar != "" {
+				pembayaran.MetodeBayar = input.MetodeBayar
+			}
+			if input.TotalBayar != nil {
+				pembayaran.JumlahBayar = *input.TotalBayar
+			} else {
+				pembayaran.JumlahBayar = order.TotalBayar
+			}
+			pembayaran.TglPembayaran = time.Now()
+			config.DB.Save(&pembayaran)
+		} else {
+			// Buat pembayaran baru
+			metode := "Cash"
+			if input.MetodeBayar != "" {
+				metode = input.MetodeBayar
+			}
+			jumlah := order.TotalBayar
+			if input.TotalBayar != nil {
+				jumlah = *input.TotalBayar
+			}
+			pembayaran = model.Pembayaran{
+				OrderID:          order.IDOrder,
+				KaryawanID:       karyawanID,
+				MetodeBayar:      metode,
+				JumlahBayar:      jumlah,
+				StatusPembayaran: input.StatusPembayaran,
+				TglPembayaran:    time.Now(),
+			}
+			config.DB.Create(&pembayaran)
+		}
+	}
+
+	// Fetch kembali data lengkap untuk dikembalikan ke client
+	updatedOrder, _ := ctrl.orderRepo.FindByID(order.IDOrder)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Pesanan berhasil diperbarui",
+		"data":    updatedOrder,
 	})
 }

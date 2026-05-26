@@ -10,7 +10,9 @@ import (
 type OrderRepository interface {
 	Create(order *model.Order) error
 	FindAllByPelangganID(pelangganID uint) ([]model.Order, error)
+	FindAll() ([]model.Order, error)
 	FindByID(idOrder uint) (*model.Order, error)
+	Update(order *model.Order) error
 }
 
 type orderRepository struct {
@@ -100,4 +102,25 @@ func (r *orderRepository) FindByID(idOrder uint) (*model.Order, error) {
 		return nil, err
 	}
 	return &order, nil
+}
+
+func (r *orderRepository) FindAll() ([]model.Order, error) {
+	var orders []model.Order
+	err := r.db.Preload("PaketLayanan").
+		Preload("Pelanggan").
+		Preload("AlamatPengambilan").
+		Preload("AlamatPenyerahan").
+		Preload("Parfum").
+		Preload("Layanan.ReferensiStatus").
+		Preload("Karyawan").
+		Preload("RiwayatStatusDetail.ReferensiStatus").
+		Preload("Pembayaran").
+		Preload("PromoOrder.Promo").
+		Order("id_order desc").
+		Find(&orders).Error
+	return orders, err
+}
+
+func (r *orderRepository) Update(order *model.Order) error {
+	return r.db.Save(order).Error
 }

@@ -40,7 +40,7 @@ func main() {
 	promoController := controller.NewPromoController(promoRepo)
 	metodePembayaranController := controller.NewMetodePembayaranController(config.DB)
 	alamatController := controller.NewAlamatController(alamatRepo, pelangganRepo)
-	orderController := controller.NewOrderController(orderRepo, pelangganRepo)
+	orderController := controller.NewOrderController(orderRepo, pelangganRepo, karyawanRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -78,13 +78,14 @@ func main() {
         alamatRoutes.DELETE("/:id", alamatController.DeleteAlamat)
     }
 
-    // Rute Order (Pelanggan Only)
+    // Rute Order
     orderRoutes := api.Group("/order")
     orderRoutes.Use(middleware.JWTAuthMiddleware())
     {
         orderRoutes.GET("", orderController.GetOrdersPelanggan)
         orderRoutes.POST("", orderController.CreateOrder)
         orderRoutes.GET("/:id", orderController.GetOrderByID)
+        orderRoutes.PUT("/:id", orderController.UpdateOrder)
     }
 
     // Rute Layanan Pelanggan (General Authenticated Users)
