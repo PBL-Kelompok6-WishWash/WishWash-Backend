@@ -237,11 +237,15 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 
 	// 3. Bind input JSON
 	var input struct {
-		Status           string   `json:"status"`            // Contoh: "Diproses", "Selesai"
-		Kuantitas        *float64 `json:"kuantitas"`         // Contoh: 3.5 (dalam kg)
-		TotalBayar       *float64 `json:"total_bayar"`       // Total bayar baru jika diubah
-		StatusPembayaran string   `json:"status_pembayaran"` // Contoh: "Paid", "Lunas", "Unpaid"
-		MetodeBayar      string   `json:"metode_bayar"`      // Contoh: "Cash", "QRIS"
+		Status              string   `json:"status"`            // Contoh: "Diproses", "Selesai"
+		Kuantitas           *float64 `json:"kuantitas"`         // Contoh: 3.5 (dalam kg)
+		TotalBayar          *float64 `json:"total_bayar"`       // Total bayar baru jika diubah
+		StatusPembayaran    string   `json:"status_pembayaran"` // Contoh: "Paid", "Lunas", "Unpaid"
+		MetodeBayar         string   `json:"metode_bayar"`      // Contoh: "Cash", "QRIS"
+		TipeLogistik        string   `json:"tipe_logistik"`
+		AlamatPenyerahanID  *uint    `json:"id_alamat_penyerahan"`
+		AlamatPengambilanID *uint    `json:"id_alamat_pengambilan"`
+		CatatanOrder        string   `json:"catatan_order"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -251,12 +255,27 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 
 	// 4. Update status jika dikirim
 	if input.Status != "" {
-		// Cari referensi status layanan yang cocok berdasarkan id_layanan dan nama_status
 		var refStatus model.ReferensiStatusLayanan
-		errRef := config.DB.Where("id_layanan = ? AND nama_status = ?", order.LayananID, input.Status).First(&refStatus).Error
-		if errRef != nil {
-			// Coba cari secara umum/case-insensitive atau toleran
-			errRef = config.DB.Where("id_layanan = ? AND LOWER(nama_status) = LOWER(?)", order.LayananID, input.Status).First(&refStatus).Error
+		var errRef error
+		
+		if input.Status == "Dibatalkan" || input.Status == "Batal" {
+			errRef = config.DB.Where("id_layanan = ? AND nama_status = ?", order.LayananID, "Dibatalkan").First(&refStatus).Error
+			if errRef != nil {
+				var maxUrutan int
+				config.DB.Model(&model.ReferensiStatusLayanan{}).Where("id_layanan = ?", order.LayananID).Select("COALESCE(MAX(urutan_tahap), 0)").Row().Scan(&maxUrutan)
+				refStatus = model.ReferensiStatusLayanan{
+					LayananID:   order.LayananID,
+					NamaStatus:  "Dibatalkan",
+					UrutanTahap: maxUrutan + 1,
+				}
+				config.DB.Create(&refStatus)
+				errRef = nil
+			}
+		} else {
+			errRef = config.DB.Where("id_layanan = ? AND nama_status = ?", order.LayananID, input.Status).First(&refStatus).Error
+			if errRef != nil {
+				errRef = config.DB.Where("id_layanan = ? AND LOWER(nama_status) = LOWER(?)", order.LayananID, input.Status).First(&refStatus).Error
+			}
 		}
 
 		if errRef == nil {
@@ -288,6 +307,19 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		}
 	} else if input.TotalBayar != nil {
 		order.TotalBayar = *input.TotalBayar
+	}
+
+	if input.TipeLogistik != "" {
+		order.TipeLogistik = input.TipeLogistik
+	}
+	if input.AlamatPenyerahanID != nil {
+		order.AlamatPenyerahanID = input.AlamatPenyerahanID
+	}
+	if input.AlamatPengambilanID != nil {
+		order.AlamatPengambilanID = input.AlamatPengambilanID
+	}
+	if input.CatatanOrder != "" {
+		order.CatatanOrder = input.CatatanOrder
 	}
 
 	// Jika Karyawan meng-update order, set KaryawanID di order
