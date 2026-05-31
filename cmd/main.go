@@ -29,6 +29,7 @@ func main() {
 	promoRepo := repository.NewPromoRepository(config.DB)
 	alamatRepo := repository.NewAlamatRepository(config.DB)
 	orderRepo := repository.NewOrderRepository(config.DB)
+	chatRepo := repository.NewChatRepository(config.DB)
 
 	// 3. Pekerjakan "Pelayan" (Controller)
 	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo)
@@ -41,6 +42,7 @@ func main() {
 	metodePembayaranController := controller.NewMetodePembayaranController(config.DB)
 	alamatController := controller.NewAlamatController(alamatRepo, pelangganRepo)
 	orderController := controller.NewOrderController(orderRepo, pelangganRepo, karyawanRepo)
+	chatController := controller.NewChatController(chatRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -58,94 +60,101 @@ func main() {
 	api := r.Group("/api/v1")
 
 	route.SetupAuthRoutes(api, authController)
+	// route.SetupChatRoutes(api, chatController)
 
 	profileRoutes := api.Group("/profile")
-    profileRoutes.Use(middleware.JWTAuthMiddleware()) // Satpam 1 (Cek Token)
-    {
-        profileRoutes.GET("", profileController.GetProfile)
-        profileRoutes.PUT("/update", profileController.UpdateProfile)
-        profileRoutes.PUT("/password", profileController.UpdatePassword)
-    }
+	profileRoutes.Use(middleware.JWTAuthMiddleware()) // Satpam 1 (Cek Token)
+	{
+		profileRoutes.GET("", profileController.GetProfile)
+		profileRoutes.PUT("/update", profileController.UpdateProfile)
+		profileRoutes.PUT("/password", profileController.UpdatePassword)
+	}
 
-    // Rute Alamat (Pelanggan Only)
-    alamatRoutes := api.Group("/alamat")
-    alamatRoutes.Use(middleware.JWTAuthMiddleware()) // Satpam 1 (Cek Token)
-    {
-        alamatRoutes.GET("", alamatController.GetAlamatPelanggan)
-        alamatRoutes.POST("", alamatController.CreateAlamat)
-        alamatRoutes.PUT("/:id", alamatController.UpdateAlamat)
-        alamatRoutes.PUT("/:id/primary", alamatController.SetPrimaryAlamat)
-        alamatRoutes.DELETE("/:id", alamatController.DeleteAlamat)
-    }
+	// Rute Alamat (Pelanggan Only)
+	alamatRoutes := api.Group("/alamat")
+	alamatRoutes.Use(middleware.JWTAuthMiddleware()) // Satpam 1 (Cek Token)
+	{
+		alamatRoutes.GET("", alamatController.GetAlamatPelanggan)
+		alamatRoutes.POST("", alamatController.CreateAlamat)
+		alamatRoutes.PUT("/:id", alamatController.UpdateAlamat)
+		alamatRoutes.PUT("/:id/primary", alamatController.SetPrimaryAlamat)
+		alamatRoutes.DELETE("/:id", alamatController.DeleteAlamat)
+	}
 
-    // Rute Order
-    orderRoutes := api.Group("/order")
-    orderRoutes.Use(middleware.JWTAuthMiddleware())
-    {
-        orderRoutes.GET("", orderController.GetOrdersPelanggan)
-        orderRoutes.POST("", orderController.CreateOrder)
-        orderRoutes.GET("/:id", orderController.GetOrderByID)
-        orderRoutes.PUT("/:id", orderController.UpdateOrder)
-    }
+	// Rute Order
+	orderRoutes := api.Group("/order")
+	orderRoutes.Use(middleware.JWTAuthMiddleware())
+	{
+		orderRoutes.GET("", orderController.GetOrdersPelanggan)
+		orderRoutes.POST("", orderController.CreateOrder)
+		orderRoutes.GET("/:id", orderController.GetOrderByID)
+		orderRoutes.PUT("/:id", orderController.UpdateOrder)
+	}
 
-    // Rute Layanan Pelanggan (General Authenticated Users)
-    layananPubRoutes := api.Group("/layanan")
-    layananPubRoutes.Use(middleware.JWTAuthMiddleware())
-    {
-        layananPubRoutes.GET("", layananController.GetAll)
-    }
+	// Rute Layanan Pelanggan (General Authenticated Users)
+	layananPubRoutes := api.Group("/layanan")
+	layananPubRoutes.Use(middleware.JWTAuthMiddleware())
+	{
+		layananPubRoutes.GET("", layananController.GetAll)
+	}
 
-    // Rute Pelanggan Terotentikasi (General Authenticated Users, e.g. Karyawan/Kasir)
-    pelangganPubRoutes := api.Group("/pelanggan")
-    pelangganPubRoutes.Use(middleware.JWTAuthMiddleware())
-    {
-        pelangganPubRoutes.GET("", pelangganController.GetAll)
-    }
+	// Rute Pelanggan Terotentikasi (General Authenticated Users, e.g. Karyawan/Kasir)
+	pelangganPubRoutes := api.Group("/pelanggan")
+	pelangganPubRoutes.Use(middleware.JWTAuthMiddleware())
+	{
+		pelangganPubRoutes.GET("", pelangganController.GetAll)
+	}
 
-    // B. Rute Khusus Admin (Hanya Role 1 yang bisa akses)
-    adminRoutes := api.Group("/admin")
-    adminRoutes.Use(middleware.JWTAuthMiddleware(), middleware.AdminOnly()) // Satpam 1 & 2
-    {
-        adminRoutes.GET("/pelanggan", pelangganController.GetAll)
-        adminRoutes.GET("/pelanggan/:id", pelangganController.GetByID)
-        adminRoutes.POST("/pelanggan", pelangganController.Create)
-        adminRoutes.PUT("/pelanggan/:id", pelangganController.Update)
-        adminRoutes.DELETE("/pelanggan/:id", pelangganController.Delete)
-        
-        adminRoutes.GET("/karyawan", karyawanController.GetAll)
-        adminRoutes.GET("/karyawan/:id", karyawanController.GetByID)
-        adminRoutes.POST("/karyawan", karyawanController.Create)
-        adminRoutes.PUT("/karyawan/:id", karyawanController.Update)
-        adminRoutes.DELETE("/karyawan/:id", karyawanController.Delete)
-        
-        // Rute Layanan
-        adminRoutes.GET("/layanan", layananController.GetAll)
-        adminRoutes.GET("/layanan/:id", layananController.GetByID)
-        adminRoutes.POST("/layanan", layananController.Create)
-        adminRoutes.PUT("/layanan/:id", layananController.Update)
-        adminRoutes.DELETE("/layanan/:id", layananController.Delete)
-        
-        // Rute Parfum
-        adminRoutes.GET("/parfum", parfumController.GetAll)
-        adminRoutes.GET("/parfum/:id", parfumController.GetByID)
-        adminRoutes.POST("/parfum", parfumController.Create)
-        adminRoutes.PUT("/parfum/:id", parfumController.Update)
-        adminRoutes.DELETE("/parfum/:id", parfumController.Delete)
+	chatRoutes := api.Group("/chat")
+	chatRoutes.Use(middleware.JWTAuthMiddleware()) // Dipasang satpam token biar aman
+	{
+		chatRoutes.GET("/room/:id_room_chat/messages", chatController.GetMessages)
+	}
 
-        // Rute Promo
-        adminRoutes.GET("/promo", promoController.GetAll)
-        adminRoutes.GET("/promo/:id", promoController.GetByID)
-        adminRoutes.POST("/promo", promoController.Create)
-        adminRoutes.PUT("/promo/:id", promoController.Update)
-        adminRoutes.DELETE("/promo/:id", promoController.Delete)
+	// B. Rute Khusus Admin (Hanya Role 1 yang bisa akses)
+	adminRoutes := api.Group("/admin")
+	adminRoutes.Use(middleware.JWTAuthMiddleware(), middleware.AdminOnly()) // Satpam 1 & 2
+	{
+		adminRoutes.GET("/pelanggan", pelangganController.GetAll)
+		adminRoutes.GET("/pelanggan/:id", pelangganController.GetByID)
+		adminRoutes.POST("/pelanggan", pelangganController.Create)
+		adminRoutes.PUT("/pelanggan/:id", pelangganController.Update)
+		adminRoutes.DELETE("/pelanggan/:id", pelangganController.Delete)
 
-        // Rute Metode Pembayaran
-        adminRoutes.GET("/metode-pembayaran", metodePembayaranController.GetAll)
-        adminRoutes.GET("/metode-pembayaran/:id", metodePembayaranController.GetByID)
-        adminRoutes.POST("/metode-pembayaran", metodePembayaranController.Create)
-        adminRoutes.PUT("/metode-pembayaran/:id", metodePembayaranController.Update)
-        adminRoutes.DELETE("/metode-pembayaran/:id", metodePembayaranController.Delete)
-    }
+		adminRoutes.GET("/karyawan", karyawanController.GetAll)
+		adminRoutes.GET("/karyawan/:id", karyawanController.GetByID)
+		adminRoutes.POST("/karyawan", karyawanController.Create)
+		adminRoutes.PUT("/karyawan/:id", karyawanController.Update)
+		adminRoutes.DELETE("/karyawan/:id", karyawanController.Delete)
+
+		// Rute Layanan
+		adminRoutes.GET("/layanan", layananController.GetAll)
+		adminRoutes.GET("/layanan/:id", layananController.GetByID)
+		adminRoutes.POST("/layanan", layananController.Create)
+		adminRoutes.PUT("/layanan/:id", layananController.Update)
+		adminRoutes.DELETE("/layanan/:id", layananController.Delete)
+
+		// Rute Parfum
+		adminRoutes.GET("/parfum", parfumController.GetAll)
+		adminRoutes.GET("/parfum/:id", parfumController.GetByID)
+		adminRoutes.POST("/parfum", parfumController.Create)
+		adminRoutes.PUT("/parfum/:id", parfumController.Update)
+		adminRoutes.DELETE("/parfum/:id", parfumController.Delete)
+
+		// Rute Promo
+		adminRoutes.GET("/promo", promoController.GetAll)
+		adminRoutes.GET("/promo/:id", promoController.GetByID)
+		adminRoutes.POST("/promo", promoController.Create)
+		adminRoutes.PUT("/promo/:id", promoController.Update)
+		adminRoutes.DELETE("/promo/:id", promoController.Delete)
+
+		// Rute Metode Pembayaran
+		adminRoutes.GET("/metode-pembayaran", metodePembayaranController.GetAll)
+		adminRoutes.GET("/metode-pembayaran/:id", metodePembayaranController.GetByID)
+		adminRoutes.POST("/metode-pembayaran", metodePembayaranController.Create)
+		adminRoutes.PUT("/metode-pembayaran/:id", metodePembayaranController.Update)
+		adminRoutes.DELETE("/metode-pembayaran/:id", metodePembayaranController.Delete)
+	}
 
 	// 6. Buka restoran di port 8080
 	log.Println("🚀 Server WishWash API berjalan di http://localhost:8080")
