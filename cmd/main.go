@@ -109,6 +109,8 @@ func main() {
 	chatRoutes.Use(middleware.JWTAuthMiddleware()) // Dipasang satpam token biar aman
 	{
 		chatRoutes.GET("/room/:id_room_chat/messages", chatController.GetMessages)
+
+		chatRoutes.GET("/room/:id_room_chat/ws", chatController.HandleWS)
 	}
 
 	// B. Rute Khusus Admin (Hanya Role 1 yang bisa akses)
