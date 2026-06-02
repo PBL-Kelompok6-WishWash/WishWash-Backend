@@ -89,6 +89,14 @@ func main() {
 		orderRoutes.POST("", orderController.CreateOrder)
 		orderRoutes.GET("/:id", orderController.GetOrderByID)
 		orderRoutes.PUT("/:id", orderController.UpdateOrder)
+		orderRoutes.POST("/scan-qr", orderController.ScanQR)
+	}
+
+	// Alias untuk /orders sesuai dengan request
+	ordersRoutes := api.Group("/orders")
+	ordersRoutes.Use(middleware.JWTAuthMiddleware())
+	{
+		ordersRoutes.POST("/scan-qr", orderController.ScanQR)
 	}
 
 	// Rute Layanan Pelanggan (General Authenticated Users)

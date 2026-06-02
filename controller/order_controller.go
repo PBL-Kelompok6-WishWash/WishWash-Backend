@@ -28,6 +28,7 @@ type OrderController interface {
 	CreateOrder(c *gin.Context)
 	GetOrderByID(c *gin.Context)
 	UpdateOrder(c *gin.Context)
+	ScanQR(c *gin.Context)
 }
 
 type orderController struct {
@@ -382,3 +383,105 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		"data":    updatedOrder,
 	})
 }
+
+func (ctrl *orderController) ScanQR(c *gin.Context) {
+	var input struct {
+		OrderID interface{} `json:"order_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Input tidak valid: " + err.Error(), "error": err.Error()})
+		return
+	}
+
+	var idOrder uint
+	switch v := input.OrderID.(type) {
+	case float64:
+		idOrder = uint(v)
+	case string:
+		parsed, err := strconv.ParseUint(v, 10, 32)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Format order_id tidak valid", "error": err.Error()})
+			return
+		}
+		idOrder = uint(parsed)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Format order_id tidak valid", "error": "Invalid type"})
+		return
+	}
+
+	// 1. Ambil data order
+	order, err := ctrl.orderRepo.FindByID(idOrder)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Pesanan tidak ditemukan", "error": err.Error()})
+		return
+	}
+
+	// 2. Dapatkan KaryawanID (jika ada)
+	var karyawanID *uint
+	userIDFloat, exists := c.Get("id_user")
+	if exists {
+		userID := uint(userIDFloat.(float64))
+		karyawan, errKaryawan := ctrl.karyawanRepo.FindByUserID(userID)
+		if errKaryawan == nil {
+			karyawanID = &karyawan.IDKaryawan
+		}
+	}
+
+	// 3. Cari status terakhir dan periksa status akhir
+	var currentUrutan int = 0
+	var lastStatusName string
+	if len(order.RiwayatStatusDetail) > 0 {
+		maxUrutanFound := 0
+		for _, rs := range order.RiwayatStatusDetail {
+			if rs.ReferensiStatus.UrutanTahap > currentUrutan {
+				currentUrutan = rs.ReferensiStatus.UrutanTahap
+			}
+			if rs.ReferensiStatus.UrutanTahap > maxUrutanFound {
+				maxUrutanFound = rs.ReferensiStatus.UrutanTahap
+				lastStatusName = rs.ReferensiStatus.NamaStatus
+			}
+		}
+	}
+	// Jika status terakhir merupakan status final, blok update
+	finalStatuses := map[string]bool{"Selesai": true, "Batal": true, "Dibatalkan": true}
+	if finalStatuses[lastStatusName] {
+		c.JSON(http.StatusConflict, gin.H{"success": false, "message": "Pesanan sudah selesai", "error": "order completed"})
+		return
+	}
+
+	// 4. Pastikan tidak di status akhir (fallback safety)
+	var maxUrutan int
+	config.DB.Model(&model.ReferensiStatusLayanan{}).Where("id_layanan = ?", order.LayananID).Select("COALESCE(MAX(urutan_tahap),0)").Row().Scan(&maxUrutan)
+	if currentUrutan >= maxUrutan {
+		c.JSON(http.StatusConflict, gin.H{"success": false, "message": "Pesanan sudah selesai", "error": "order completed"})
+		return
+	}
+	var nextStatus model.ReferensiStatusLayanan
+	err = config.DB.Where("id_layanan = ? AND urutan_tahap = ?", order.LayananID, currentUrutan+1).First(&nextStatus).Error
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Pesanan sudah berada di status akhir atau tidak dapat dilanjutkan", "error": err.Error()})
+		return
+	}
+
+	// 5. Update status
+	history := model.RiwayatStatusDetail{
+		ReferensiStatusID: nextStatus.IDReferensiStatus,
+		OrderID:           order.IDOrder,
+		KaryawanID:        karyawanID,
+		WaktuUpdate:       time.Now(),
+	}
+	if err := config.DB.Create(&history).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Gagal mengupdate status pesanan", "error": err.Error()})
+		return
+	}
+
+	updatedOrder, _ := ctrl.orderRepo.FindByID(order.IDOrder)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Status pesanan berhasil diperbarui menjadi " + nextStatus.NamaStatus,
+		"data":    updatedOrder,
+	})
+}
+
