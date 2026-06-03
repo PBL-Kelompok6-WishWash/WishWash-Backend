@@ -1,51 +1,72 @@
 package repository
 
 import (
-	"time"
-
-	"gorm.io/gorm" // 👈 Kita pakai gorm sekarang biar seragam!
+	"github.com/PBL-Kelompok6-WishWash/backend/model"
+	"gorm.io/gorm"
 )
 
-// 1. Struktur mangkok data tetep sama
-type MessageData struct {
-	IdPesanChat int        `json:"id_pesan_chat"`
-	IdRoomChat  int        `json:"id_room_chat"`
-	IdUser      int        `json:"id_user"` 
-	TeksPesan   string     `json:"teks_pesan"`
-	WaktuKirim  time.Time  `json:"waktu_kirim"`
-	StatusBaca  bool       `json:"status_baca"`
-	PathGambar  *string    `json:"path_gambar"` 
-}
-
 type ChatRepository interface {
-	GetMessagesByRoomID(roomID string) ([]MessageData, error)
+	GetMessagesByRoomID(roomID uint) ([]model.PesanChat, error)
+	SaveMessage(msg *model.PesanChat) error
+	GetRoomsByUserID(userID uint) ([]model.RoomChat, error) // Tambahan untuk daftar chat di awal
+	GetOrCreateRoomByOrderID(orderID uint) (*model.RoomChat, error)
 }
 
 type chatRepository struct {
-	db *gorm.DB // 👈 Ubah dari *sql.DB ke *gorm.DB
+	db *gorm.DB
 }
 
-func NewChatRepository(db *gorm.DB) ChatRepository { // 👈 Ubah dari *sql.DB ke *gorm.DB
+func NewChatRepository(db *gorm.DB) ChatRepository {
 	return &chatRepository{db: db}
 }
 
-// 2. Fungsi koki menggunakan cara query GORM (Jauh lebih ringkas, gak perlu looping rows.Next!)
-func (r *chatRepository) GetMessagesByRoomID(roomID string) ([]MessageData, error) {
-	var messages []MessageData
+// 1. Mengambil riwayat pesan lama berdasarkan ID Room Chat
+func (r *chatRepository) GetMessagesByRoomID(roomID uint) ([]model.PesanChat, error) {
+	var messages []model.PesanChat
+	// Preload "User" dan "ChatGambar" untuk data lengkap
+	err := r.db.Where("id_room_chat = ?", roomID).Order("waktu_kirim asc").Preload("User").Preload("ChatGambar").Find(&messages).Error
+	if err == nil {
+		for i := range messages {
+			if len(messages[i].ChatGambar) > 0 {
+				messages[i].PathGambar = messages[i].ChatGambar[0].PathGambar
+			}
+		}
+	}
+	return messages, err
+}
 
-	query := `
-		SELECT p.id_pesan_chat, p.id_room_chat, p.id_user, p.teks_pesan, p.waktu_kirim, p.status_baca, g.path_gambar
-		FROM pesan_chat p
-		LEFT JOIN chat_gambar g ON p.id_pesan_chat = g.id_pesan_chat
-		WHERE p.id_room_chat = ?
-		ORDER BY p.waktu_kirim ASC;
-	`
+// 2. Menyimpan pesan baru yang masuk lewat WebSocket ke database
+func (r *chatRepository) SaveMessage(msg *model.PesanChat) error {
+	return r.db.Create(msg).Error
+}
 
-	// Pake r.db.Raw bawaan GORM langsung beres scan otomatis ke struct
-	err := r.db.Raw(query, roomID).Scan(&messages).Error
+// 3. Mengambil daftar Room Chat yang aktif untuk user tertentu (Pelanggan/Karyawan)
+func (r *chatRepository) GetRoomsByUserID(userID uint) ([]model.RoomChat, error) {
+	var rooms []model.RoomChat
+	// Mencari room chat yang terikat dengan order milik pelanggan atau ditangani karyawan tersebut
+	err := r.db.Joins("JOIN \"order\" ON \"order\".id_order = room_chat.id_order").
+		Joins("JOIN pelanggan ON pelanggan.id_pelanggan = \"order\".id_pelanggan").
+		Where("pelanggan.id_user = ? OR \"order\".id_karyawan = (SELECT id_karyawan FROM karyawan WHERE id_user = ?)", userID, userID).
+		Preload("Order").Preload("Order.Pelanggan").Preload("Order.Karyawan").
+		Find(&rooms).Error
+	return rooms, err
+}
+
+// 4. Mendapatkan atau membuat Room Chat baru berdasarkan ID Order
+func (r *chatRepository) GetOrCreateRoomByOrderID(orderID uint) (*model.RoomChat, error) {
+	var room model.RoomChat
+	err := r.db.Where("id_order = ?", orderID).First(&room).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			room = model.RoomChat{
+				OrderID: orderID,
+			}
+			if err := r.db.Create(&room).Error; err != nil {
+				return nil, err
+			}
+			return &room, nil
+		}
 		return nil, err
 	}
-
-	return messages, nil
+	return &room, nil
 }

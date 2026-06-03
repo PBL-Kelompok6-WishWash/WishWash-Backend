@@ -1,53 +1,199 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
+	"sync"
+	"time"
 
+	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
+	"github.com/PBL-Kelompok6-WishWash/backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
+// Upgrader untuk mengubah koneksi HTTP biasa menjadi WebSocket
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Mengizinkan koneksi dari hp/flutter tanpa kendala CORS
+	},
+}
+
+// Struktur untuk menyimpan koneksi aktif di dalam setiap Room Chat
+type RoomPool struct {
+	Clients map[*websocket.Conn]uint // Menyimpan pointer koneksi dan ID User-nya
+	Mu      sync.Mutex
+}
+
+// Map global untuk menampung semua room chat yang sedang aktif mengobrol
+var activeRooms = make(map[string]*RoomPool)
+var roomsMu sync.Mutex
+
 type ChatController struct {
-	chatRepo repository.ChatRepository
+	repo repository.ChatRepository
 }
 
-// Constructor buat bikin instance controller baru
-func NewChatController(chatRepo repository.ChatRepository) *ChatController {
-	return &ChatController{chatRepo: chatRepo}
+func NewChatController(repo repository.ChatRepository) *ChatController {
+	return &ChatController{repo: repo}
 }
 
-// Fungsi utama untuk handle request GET riwayat pesan
-func (h *ChatController) GetMessages(c *gin.Context) {
-	// 1. Tangkap parameter id_room_chat dari URL rute main.go
-	roomID := c.Param("id_room_chat")
-	if roomID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID room chat tidak valid atau kosong",
-		})
-		return
-	}
-
-	// 2. Minta si koki database (repository) buat narik data dari PostgreSQL
-	messages, err := h.chatRepo.GetMessagesByRoomID(roomID)
+// 1. HTTP Endpoint: Mengambil semua riwayat chat lama
+func (c *ChatController) GetMessages(ctx *gin.Context) {
+	roomIDStr := ctx.Param("id_room_chat")
+	roomID, err := strconv.ParseUint(roomIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Gagal mengambil riwayat pesan dari database",
-			"error":   err.Error(),
-		})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID Room tidak valid"})
 		return
 	}
 
-	// 3. Kalau datanya kosong (belum pernah chat), jangan eror, tapi kasih array kosong []
-	if messages == nil {
-		messages = []repository.MessageData{}
+	messages, err := c.repo.GetMessagesByRoomID(uint(roomID))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil riwayat pesan"})
+		return
 	}
 
-	// 4. Sajikan data chat-nya dalam bentuk JSON yang super rapi!
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Berhasil memuat riwayat pesan",
-		"data":    messages,
-	})
+	ctx.JSON(http.StatusOK, gin.H{"data": messages})
+}
+
+// 1.5. HTTP Endpoint: Mengambil daftar Room Chat aktif untuk user yang login
+func (c *ChatController) GetRooms(ctx *gin.Context) {
+	userIDFloat, exists := ctx.Get("id_user")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID := uint(userIDFloat.(float64))
+
+	rooms, err := c.repo.GetRoomsByUserID(userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil daftar room chat"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"data": rooms})
+}
+
+// 1.6. HTTP Endpoint: Mendapatkan atau membuat Room Chat baru berdasarkan ID Order
+func (c *ChatController) GetOrCreateRoom(ctx *gin.Context) {
+	orderIDStr := ctx.Param("id_order")
+	orderID, err := strconv.ParseUint(orderIDStr, 10, 32)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID Order tidak valid"})
+		return
+	}
+
+	room, err := c.repo.GetOrCreateRoomByOrderID(uint(orderID))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mendapatkan atau membuat room chat"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"data": room})
+}
+
+// 2. WebSocket Endpoint: Menangani jabat tangan (Handshake) dan lempar-tangkap pesan instan
+func (c *ChatController) HandleWS(ctx *gin.Context) {
+	roomIDStr := ctx.Param("id_room_chat")
+	
+	// Mengambil ID User dari query parameter (misal: ws://.../ws?id_user=5)
+	userIDStr := ctx.Query("id_user")
+	userID, _ := strconv.ParseUint(userIDStr, 10, 32)
+
+	// Upgrade koneksi HTTP ke WebSocket
+	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	// Kelola ruangan obrolan agar pesan tidak nyasar ke room lain
+	roomsMu.Lock()
+	if activeRooms[roomIDStr] == nil {
+		activeRooms[roomIDStr] = &RoomPool{
+			Clients: make(map[*websocket.Conn]uint),
+		}
+	}
+	pool := activeRooms[roomIDStr]
+	roomsMu.Unlock()
+
+	// Daftarkan koneksi baru ke dalam pool ruangan
+	pool.Mu.Lock()
+	pool.Clients[conn] = uint(userID)
+	pool.Mu.Unlock()
+
+	// Bersihkan koneksi jika user menutup aplikasi atau keluar dari halaman chat
+	defer func() {
+		pool.Mu.Lock()
+		delete(pool.Clients, conn)
+		pool.Mu.Unlock()
+	}()
+
+	// Loop terus-menerus untuk mendengarkan apakah ada pesan masuk dari Flutter
+	for {
+		var incoming struct {
+			TeksPesan    string `json:"teks_pesan"`
+			Base64Gambar string `json:"base64_gambar"`
+		}
+
+		// Membaca pesan JSON dari Flutter
+		err := conn.ReadJSON(&incoming)
+		if err != nil {
+			break // Keluar dari loop jika koneksi terputus
+		}
+
+		roomIDUint, _ := strconv.ParseUint(roomIDStr, 10, 32)
+
+		// Bungkus ke dalam model GORM untuk disimpan ke database
+		msg := model.PesanChat{
+			RoomChatID: uint(roomIDUint),
+			UserID:     uint(userID),
+			TeksPesan:  incoming.TeksPesan,
+			WaktuKirim: time.Now(),
+			StatusBaca: false,
+		}
+
+		// Jika ada gambar terkirim (base64)
+		if incoming.Base64Gambar != "" {
+			folderName := fmt.Sprintf("room_%d", msg.RoomChatID)
+			fileName := fmt.Sprintf("img_%d_%d", msg.UserID, time.Now().UnixNano())
+			path, errSave := utils.SaveBase64Image(incoming.Base64Gambar, "chat", folderName, fileName)
+			if errSave == nil {
+				msg.ChatGambar = []model.ChatGambar{
+					{
+						PathGambar: path,
+					},
+				}
+				// Set non-persistent field PathGambar for WebSocket broadcast JSON
+				msg.PathGambar = path
+			} else {
+				// Log error tapi tetap lanjut simpan teks
+				fmt.Printf("🔴 Gagal menyimpan gambar chat: %v\n", errSave)
+			}
+		}
+
+		// Simpan pesan ke PostgreSQL lewat repository
+		if err := c.repo.SaveMessage(&msg); err != nil {
+			continue
+		}
+
+		// Kirim balik pesan ini secara broadcast ke SEMUA orang yang ada di room chat yang sama
+		pool.Mu.Lock()
+		for client := range pool.Clients {
+			// Mengirim data pesan lengkap beserta pengirimnya ke Flutter secara real-time
+			_ = client.WriteJSON(gin.H{
+				"id_pesan_chat": msg.IDPesanChat,
+				"id_room_chat":  msg.RoomChatID,
+				"id_user":       msg.UserID,
+				"teks_pesan":    msg.TeksPesan,
+				"waktu_kirim":   msg.WaktuKirim.Format(time.RFC3339),
+				"status_baca":   msg.StatusBaca,
+				"path_gambar":   msg.PathGambar,
+			})
+		}
+		pool.Mu.Unlock()
+	}
 }

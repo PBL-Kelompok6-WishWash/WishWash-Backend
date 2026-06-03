@@ -9,9 +9,12 @@ type PesanChat struct {
 	TeksPesan   string    `gorm:"type:text;column:teks_pesan" json:"teks_pesan"`
 	WaktuKirim  time.Time `gorm:"type:timestamp;column:waktu_kirim;default:CURRENT_TIMESTAMP" json:"waktu_kirim"`
 	StatusBaca  bool      `gorm:"default:false;column:status_baca" json:"status_baca"`
+	PathGambar  string    `gorm:"-" json:"path_gambar"`
 
 	RoomChat RoomChat `gorm:"foreignKey:RoomChatID" json:"RoomChat"`
 	User     User     `gorm:"foreignKey:UserID" json:"User"`
+
+	ChatGambar []ChatGambar `gorm:"foreignKey:PesanChatID" json:"ChatGambar,omitempty"`
 }
 
 func (PesanChat) TableName() string {

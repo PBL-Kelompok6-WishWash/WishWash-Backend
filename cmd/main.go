@@ -115,13 +115,29 @@ func main() {
 		pelangganPubRoutes.GET("", pelangganController.GetAll)
 	}
 
-	chatRoutes := api.Group("/chat")
-	chatRoutes.Use(middleware.JWTAuthMiddleware()) // Dipasang satpam token biar aman
-	{
-		chatRoutes.GET("/room/:id_room_chat/messages", chatController.GetMessages)
+	// chatRoutes := api.Group("/chat")
+	// chatRoutes.Use(middleware.JWTAuthMiddleware()) // Dipasang satpam token biar aman
+	// {
+	// 	chatRoutes.GET("/room/:id_room_chat/messages", chatController.GetMessages)
 
-		chatRoutes.GET("/room/:id_room_chat/ws", chatController.HandleWS)
-	}
+	// 	chatRoutes.GET("/room/:id_room_chat/ws", chatController.HandleWS)
+	// }
+
+	// 🟢 REVISI YANG BENER (Ganti GetOrdersPelanggan jadi GetMessages):
+    chatRoutes := api.Group("/chat")
+    {
+        // 1. Ambil history chat lama tetap dijaga satpam JWT, tapi pake fungsi asli kelompokmu (GetMessages)
+        chatRoutes.GET("/room/:id_room_chat/messages", middleware.JWTAuthMiddleware(), chatController.GetMessages) 
+
+        // 2. Jalur WebSocket dilepas dulu satpamnya biar jabat tangan dari HP lancar jaya
+        chatRoutes.GET("/room/:id_room_chat/ws", chatController.HandleWS)
+
+        // 3. Ambil daftar room chat aktif (dipakai di chat_screen.dart)
+        chatRoutes.GET("/rooms", middleware.JWTAuthMiddleware(), chatController.GetRooms)
+
+        // 4. Dapatkan atau buat room chat baru dari ID Order (dipakai di order_detail_screen.dart)
+        chatRoutes.GET("/room/order/:id_order", middleware.JWTAuthMiddleware(), chatController.GetOrCreateRoom)
+    }
 
 	// B. Rute Khusus Admin (Hanya Role 1 yang bisa akses)
 	adminRoutes := api.Group("/admin")
