@@ -323,6 +323,9 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 
 	if input.TipeLogistik != "" {
 		order.TipeLogistik = input.TipeLogistik
+		if input.TipeLogistik == "Drop-off" {
+			order.AlamatPenyerahanID = nil
+		}
 	}
 	if input.AlamatPenyerahanID != nil {
 		order.AlamatPenyerahanID = input.AlamatPenyerahanID
