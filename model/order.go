@@ -33,6 +33,7 @@ type Order struct {
 	RiwayatStatusDetail []RiwayatStatusDetail `gorm:"foreignKey:OrderID" json:"RiwayatStatusDetail"`
 	Pembayaran          *Pembayaran           `gorm:"foreignKey:OrderID" json:"Pembayaran"`
 	PromoOrder          []PromoOrder          `gorm:"foreignKey:OrderID" json:"PromoOrder"`
+	Penilaian           *Penilaian            `gorm:"foreignKey:OrderID" json:"Penilaian"`
 }
 
 func (Order) TableName() string {

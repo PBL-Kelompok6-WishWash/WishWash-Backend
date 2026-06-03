@@ -45,6 +45,24 @@ func (r *orderRepository) Create(order *model.Order) error {
 			if err := tx.Create(&history).Error; err != nil {
 				return err
 			}
+
+			// If created by Karyawan/Admin, automatically progress to Proses Timbang (Weigh)
+			if order.KaryawanID != nil {
+				var timbangStatus model.ReferensiStatusLayanan
+				errTimbang := tx.Where("id_layanan = ? AND (nama_status = ? OR LOWER(nama_status) LIKE ?)", 
+					order.LayananID, "Proses Timbang", "%timbang%").First(&timbangStatus).Error
+				if errTimbang == nil {
+					timbangHistory := model.RiwayatStatusDetail{
+						ReferensiStatusID: timbangStatus.IDReferensiStatus,
+						OrderID:           order.IDOrder,
+						KaryawanID:        order.KaryawanID,
+						WaktuUpdate:       time.Now().Add(time.Second),
+					}
+					if err := tx.Create(&timbangHistory).Error; err != nil {
+						return err
+					}
+				}
+			}
 		}
 
 		// Preload relationships back into the order struct after successful creation
@@ -58,6 +76,7 @@ func (r *orderRepository) Create(order *model.Order) error {
 			Preload("RiwayatStatusDetail.ReferensiStatus").
 			Preload("Pembayaran").
 			Preload("PromoOrder.Promo").
+			Preload("Penilaian").
 			First(order, order.IDOrder).Error
 		if err != nil {
 			return err
@@ -79,6 +98,7 @@ func (r *orderRepository) FindAllByPelangganID(pelangganID uint) ([]model.Order,
 		Preload("RiwayatStatusDetail.ReferensiStatus").
 		Preload("Pembayaran").
 		Preload("PromoOrder.Promo").
+		Preload("Penilaian").
 		Where("id_pelanggan = ?", pelangganID).
 		Order("id_order desc").
 		Find(&orders).Error
@@ -97,6 +117,7 @@ func (r *orderRepository) FindByID(idOrder uint) (*model.Order, error) {
 		Preload("RiwayatStatusDetail.ReferensiStatus").
 		Preload("Pembayaran").
 		Preload("PromoOrder.Promo").
+		Preload("Penilaian").
 		First(&order, idOrder).Error
 	if err != nil {
 		return nil, err
@@ -116,6 +137,7 @@ func (r *orderRepository) FindAll() ([]model.Order, error) {
 		Preload("RiwayatStatusDetail.ReferensiStatus").
 		Preload("Pembayaran").
 		Preload("PromoOrder.Promo").
+		Preload("Penilaian").
 		Order("id_order desc").
 		Find(&orders).Error
 	return orders, err

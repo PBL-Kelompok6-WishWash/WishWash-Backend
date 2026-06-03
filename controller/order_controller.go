@@ -131,12 +131,22 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		}
 	}
 
+	var karyawanID *uint
 	if roleID == 1 || roleID == 2 {
 		if input.PelangganID == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "ID Pelanggan wajib diisi untuk Karyawan/Admin"})
 			return
 		}
 		pelangganID = *input.PelangganID
+
+		userIDFloat, exists := c.Get("id_user")
+		if exists {
+			userID := uint(userIDFloat.(float64))
+			karyawan, errKaryawan := ctrl.karyawanRepo.FindByUserID(userID)
+			if errKaryawan == nil {
+				karyawanID = &karyawan.IDKaryawan
+			}
+		}
 	} else {
 		pelangganID, err = ctrl.getPelangganIDFromContext(c)
 		if err != nil {
@@ -175,6 +185,7 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		TotalBayar:          input.TotalBayar,
 		CatatanOrder:        input.CatatanOrder,
 		TglPesanan:          time.Now(),
+		KaryawanID:          karyawanID,
 	}
 
 	if err := ctrl.orderRepo.Create(&order); err != nil {

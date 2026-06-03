@@ -43,6 +43,7 @@ func main() {
 	alamatController := controller.NewAlamatController(alamatRepo, pelangganRepo)
 	orderController := controller.NewOrderController(orderRepo, pelangganRepo, karyawanRepo)
 	chatController := controller.NewChatController(chatRepo)
+	penilaianController := controller.NewPenilaianController(config.DB)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -90,6 +91,7 @@ func main() {
 		orderRoutes.GET("/:id", orderController.GetOrderByID)
 		orderRoutes.PUT("/:id", orderController.UpdateOrder)
 		orderRoutes.POST("/scan-qr", orderController.ScanQR)
+		orderRoutes.POST("/:id/penilaian", penilaianController.RateOrder)
 	}
 
 	// Alias untuk /orders sesuai dengan request
