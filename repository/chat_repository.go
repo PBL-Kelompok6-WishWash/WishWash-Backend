@@ -22,44 +22,17 @@ func NewChatRepository(db *gorm.DB) ChatRepository {
 
 // 1. Mengambil riwayat pesan lama berdasarkan ID Room Chat
 func (r *chatRepository) GetMessagesByRoomID(roomID uint) ([]model.PesanChat, error) {
-	var room model.RoomChat
-	if err := r.db.Preload("Order").Preload("Order.Pelanggan").Preload("Order.Karyawan").First(&room, roomID).Error; err != nil {
-		return nil, err
-	}
-
 	var messages []model.PesanChat
 	// Preload "User" dan "ChatGambar" untuk data lengkap
 	err := r.db.Where("id_room_chat = ?", roomID).Order("waktu_kirim asc").Preload("User").Preload("ChatGambar").Find(&messages).Error
-	if err != nil {
-		return nil, err
-	}
-
-	var filtered []model.PesanChat
-	for _, msg := range messages {
-		isPelanggan := msg.UserID == room.Order.Pelanggan.UserID
-		isKaryawan := room.Order.KaryawanID != nil && msg.UserID == room.Order.Karyawan.UserID
-		isAdmin := false
-
-		if msg.User.IDUser > 0 {
-			isAdmin = msg.User.RoleID == 1
-		} else {
-			var u model.User
-			if r.db.First(&u, msg.UserID).Error == nil {
-				isAdmin = u.RoleID == 1
+	if err == nil {
+		for i := range messages {
+			if len(messages[i].ChatGambar) > 0 {
+				messages[i].PathGambar = messages[i].ChatGambar[0].PathGambar
 			}
 		}
-
-		if isPelanggan || isKaryawan || isAdmin {
-			filtered = append(filtered, msg)
-		}
 	}
-
-	for i := range filtered {
-		if len(filtered[i].ChatGambar) > 0 {
-			filtered[i].PathGambar = filtered[i].ChatGambar[0].PathGambar
-		}
-	}
-	return filtered, nil
+	return messages, nil
 }
 
 // 2. Menyimpan pesan baru yang masuk lewat WebSocket ke database
