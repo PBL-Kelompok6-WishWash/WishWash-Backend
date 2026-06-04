@@ -78,6 +78,18 @@ func (r *chatRepository) GetRoomsByUserID(userID uint) ([]model.RoomChat, error)
 		Order("room_chat.waktu_dibuat DESC").
 		Find(&rooms).Error
 
+	if err == nil {
+		seenCustomer := make(map[uint]bool)
+		var uniqueRooms []model.RoomChat
+		for _, room := range rooms {
+			custID := room.Order.PelangganID
+			if !seenCustomer[custID] {
+				seenCustomer[custID] = true
+				uniqueRooms = append(uniqueRooms, room)
+			}
+		}
+		return uniqueRooms, nil
+	}
 	return rooms, err
 }
 
@@ -89,7 +101,8 @@ func (r *chatRepository) GetOrCreateRoomByOrderID(orderID uint) (*model.RoomChat
 	}
 
 	var existingRoom model.RoomChat
-	err := r.db.Where("id_order = ?", orderID).
+	err := r.db.Joins("JOIN \"order\" ON \"order\".id_order = room_chat.id_order").
+		Where("\"order\".id_pelanggan = ?", currentOrder.PelangganID).
 		Preload("Order").Preload("Order.Pelanggan").Preload("Order.Karyawan").
 		First(&existingRoom).Error
 
