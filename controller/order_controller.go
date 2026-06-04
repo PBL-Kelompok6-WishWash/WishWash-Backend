@@ -29,6 +29,7 @@ type OrderController interface {
 	GetOrderByID(c *gin.Context)
 	UpdateOrder(c *gin.Context)
 	ScanQR(c *gin.Context)
+	GetRevenueSummary(c *gin.Context)
 }
 
 type orderController struct {
@@ -258,6 +259,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		AlamatPenyerahanID  *uint    `json:"id_alamat_penyerahan"`
 		AlamatPengambilanID *uint    `json:"id_alamat_pengambilan"`
 		CatatanOrder        string   `json:"catatan_order"`
+		IsCourierOnWay      *bool    `json:"is_courier_on_way"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -335,6 +337,9 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 	}
 	if input.CatatanOrder != "" {
 		order.CatatanOrder = input.CatatanOrder
+	}
+	if input.IsCourierOnWay != nil {
+		order.IsCourierOnWay = *input.IsCourierOnWay
 	}
 
 	// Jika Karyawan meng-update order, set KaryawanID di order
@@ -496,6 +501,148 @@ func (ctrl *orderController) ScanQR(c *gin.Context) {
 		"success": true,
 		"message": "Status pesanan berhasil diperbarui menjadi " + nextStatus.NamaStatus,
 		"data":    updatedOrder,
+	})
+}
+
+func (ctrl *orderController) GetRevenueSummary(c *gin.Context) {
+	roleData, exists := c.Get("id_role")
+	roleID := 3 // default to customer
+	if exists {
+		roleID = int(roleData.(float64))
+	}
+
+	if roleID != 1 && roleID != 2 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Hanya Admin atau Karyawan yang dapat mengakses data pendapatan"})
+		return
+	}
+
+	var payments []model.Pembayaran
+	err := config.DB.
+		Preload("Order.Pelanggan").
+		Preload("Order.Layanan").
+		Where("LOWER(status_pembayaran) IN (?, ?)", "paid", "lunas").
+		Order("tgl_pembayaran desc").
+		Find(&payments).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data pendapatan: " + err.Error()})
+		return
+	}
+
+	now := time.Now()
+	loc := now.Location()
+
+	targetMonth := int(now.Month())
+	targetYear := now.Year()
+
+	if mStr := c.Query("month"); mStr != "" {
+		if mVal, err := strconv.Atoi(mStr); err == nil && mVal >= 1 && mVal <= 12 {
+			targetMonth = mVal
+		}
+	}
+	if yStr := c.Query("year"); yStr != "" {
+		if yVal, err := strconv.Atoi(yStr); err == nil {
+			targetYear = yVal
+		}
+	}
+
+	year, month, day := now.Date()
+	todayStart := time.Date(year, month, day, 0, 0, 0, 0, loc)
+	todayEnd := todayStart.Add(24 * time.Hour)
+
+	yesterdayStart := todayStart.Add(-24 * time.Hour)
+	yesterdayEnd := todayStart
+
+	monthStart := time.Date(targetYear, time.Month(targetMonth), 1, 0, 0, 0, 0, loc)
+	monthEnd := monthStart.AddDate(0, 1, 0)
+
+	var todayRevenue float64
+	var yesterdayRevenue float64
+	var monthlyRevenue float64
+	var accumulatedRevenue float64
+
+	type TransactionItem struct {
+		ID            string    `json:"id"`
+		MethodType    string    `json:"method_type"`
+		Title         string    `json:"title"`
+		Subtitle      string    `json:"subtitle"`
+		Time          time.Time `json:"time"`
+		Amount        float64   `json:"amount"`
+		PaymentMethod string    `json:"payment_method"`
+		FotoPelanggan string    `json:"foto_pelanggan"`
+	}
+
+	var transactions []TransactionItem
+
+	for _, p := range payments {
+		accumulatedRevenue += p.JumlahBayar
+
+		pTimeLocal := p.TglPembayaran.In(loc)
+
+		// Check if today
+		if pTimeLocal.After(todayStart) && pTimeLocal.Before(todayEnd) {
+			todayRevenue += p.JumlahBayar
+		}
+
+		// Check if yesterday
+		if pTimeLocal.After(yesterdayStart) && pTimeLocal.Before(yesterdayEnd) {
+			yesterdayRevenue += p.JumlahBayar
+		}
+
+		// Check if this month
+		if pTimeLocal.After(monthStart) && pTimeLocal.Before(monthEnd) {
+			monthlyRevenue += p.JumlahBayar
+
+			methodType := "digital"
+			if p.MetodeBayar == "Tunai" || p.MetodeBayar == "Cash" {
+				methodType = "cash"
+			}
+
+			title := fmt.Sprintf("Order #%s", p.Order.KodeOrder)
+			if p.Order.KodeOrder == "" {
+				title = fmt.Sprintf("Order #WW-%d", p.OrderID)
+			}
+
+			subtitle := fmt.Sprintf("%s • %s", p.Order.Pelanggan.NamaLengkap, p.Order.Layanan.NamaLayanan)
+
+			transactions = append(transactions, TransactionItem{
+				ID:            fmt.Sprintf("TX-%d", p.IDPembayaran),
+				MethodType:    methodType,
+				Title:         title,
+				Subtitle:      subtitle,
+				Time:          p.TglPembayaran,
+				Amount:        p.JumlahBayar,
+				PaymentMethod: p.MetodeBayar,
+				FotoPelanggan: p.Order.Pelanggan.FotoPelanggan,
+			})
+		}
+	}
+
+	// Hitung persentase trend
+	var trendText string
+	if yesterdayRevenue == 0 {
+		if todayRevenue > 0 {
+			trendText = "+100%"
+		} else {
+			trendText = "0%"
+		}
+	} else {
+		diff := ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100
+		if diff >= 0 {
+			trendText = fmt.Sprintf("+%.1f%%", diff)
+		} else {
+			trendText = fmt.Sprintf("%.1f%%", diff)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":             true,
+		"today_revenue":       todayRevenue,
+		"yesterday_revenue":   yesterdayRevenue,
+		"monthly_revenue":     monthlyRevenue,
+		"accumulated_revenue": accumulatedRevenue,
+		"percentage_trend":    trendText,
+		"transactions":        transactions,
 	})
 }
 

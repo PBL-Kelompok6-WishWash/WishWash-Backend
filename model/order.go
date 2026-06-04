@@ -21,6 +21,7 @@ type Order struct {
 	Kuantitas        float64   `gorm:"type:numeric;column:kuantitas" json:"kuantitas"`
 	TotalBayar       float64   `gorm:"type:numeric;column:total_bayar" json:"total_bayar"`
 	CatatanOrder     string    `gorm:"type:text;column:catatan_order" json:"catatan_order"`
+	IsCourierOnWay   bool      `gorm:"column:is_courier_on_way;default:false" json:"is_courier_on_way"`
 
 	// --- Relasi GORM ---
 	PaketLayanan        PaketLayanan          `gorm:"foreignKey:PaketLayananID" json:"PaketLayanan"`

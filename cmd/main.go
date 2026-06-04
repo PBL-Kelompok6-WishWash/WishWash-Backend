@@ -88,6 +88,7 @@ func main() {
 	{
 		orderRoutes.GET("", orderController.GetOrdersPelanggan)
 		orderRoutes.POST("", orderController.CreateOrder)
+		orderRoutes.GET("/revenue", orderController.GetRevenueSummary)
 		orderRoutes.GET("/:id", orderController.GetOrderByID)
 		orderRoutes.PUT("/:id", orderController.UpdateOrder)
 		orderRoutes.POST("/scan-qr", orderController.ScanQR)
