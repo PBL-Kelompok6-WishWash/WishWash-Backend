@@ -116,6 +116,13 @@ func main() {
 		pelangganPubRoutes.GET("", pelangganController.GetAll)
 	}
 
+	// Rute Promo Pelanggan (General Authenticated Users)
+	promoPubRoutes := api.Group("/promo")
+	promoPubRoutes.Use(middleware.JWTAuthMiddleware())
+	{
+		promoPubRoutes.GET("", promoController.GetAll)
+	}
+
 	// chatRoutes := api.Group("/chat")
 	// chatRoutes.Use(middleware.JWTAuthMiddleware()) // Dipasang satpam token biar aman
 	// {
