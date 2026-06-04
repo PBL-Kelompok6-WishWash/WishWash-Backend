@@ -17,7 +17,41 @@ type chatRepository struct {
 }
 
 func NewChatRepository(db *gorm.DB) ChatRepository {
+	mergeDuplicateRooms(db)
 	return &chatRepository{db: db}
+}
+
+func mergeDuplicateRooms(db *gorm.DB) {
+	var pelangganIDs []uint
+	if err := db.Model(&model.Pelanggan{}).Pluck("id_pelanggan", &pelangganIDs).Error; err != nil {
+		return
+	}
+	
+	for _, pID := range pelangganIDs {
+		var rooms []model.RoomChat
+		err := db.Joins("JOIN \"order\" ON \"order\".id_order = room_chat.id_order").
+			Where("\"order\".id_pelanggan = ?", pID).
+			Order("room_chat.id_room_chat ASC").
+			Find(&rooms).Error
+			
+		if err == nil && len(rooms) > 1 {
+			keepRoomID := rooms[0].IDRoomChat
+			var deleteRoomIDs []uint
+			for i := 1; i < len(rooms); i++ {
+				deleteRoomIDs = append(deleteRoomIDs, rooms[i].IDRoomChat)
+			}
+			
+			if len(deleteRoomIDs) > 0 {
+				// Re-bind messages from duplicate rooms to the main room
+				db.Model(&model.PesanChat{}).
+					Where("id_room_chat IN ?", deleteRoomIDs).
+					Update("id_room_chat", keepRoomID)
+					
+				// Delete the duplicate rooms
+				db.Where("id_room_chat IN ?", deleteRoomIDs).Delete(&model.RoomChat{})
+			}
+		}
+	}
 }
 
 // 1. Mengambil riwayat pesan lama berdasarkan ID Room Chat
