@@ -49,24 +49,45 @@ func (r *chatRepository) GetRoomsByUserID(userID uint) ([]model.RoomChat, error)
 		Where("pelanggan.id_user = ? OR \"order\".id_karyawan = (SELECT id_karyawan FROM karyawan WHERE id_user = ?)", userID, userID).
 		Preload("Order").Preload("Order.Pelanggan").Preload("Order.Karyawan").
 		Find(&rooms).Error
+
+	if err == nil {
+		seenCustomer := make(map[uint]bool)
+		var uniqueRooms []model.RoomChat
+		for _, room := range rooms {
+			custID := room.Order.PelangganID
+			if !seenCustomer[custID] {
+				seenCustomer[custID] = true
+				uniqueRooms = append(uniqueRooms, room)
+			}
+		}
+		return uniqueRooms, nil
+	}
 	return rooms, err
 }
 
 // 4. Mendapatkan atau membuat Room Chat baru berdasarkan ID Order
 func (r *chatRepository) GetOrCreateRoomByOrderID(orderID uint) (*model.RoomChat, error) {
-	var room model.RoomChat
-	err := r.db.Where("id_order = ?", orderID).First(&room).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			room = model.RoomChat{
-				OrderID: orderID,
-			}
-			if err := r.db.Create(&room).Error; err != nil {
-				return nil, err
-			}
-			return &room, nil
-		}
+	var currentOrder model.Order
+	if err := r.db.Where("id_order = ?", orderID).First(&currentOrder).Error; err != nil {
 		return nil, err
 	}
+
+	var existingRoom model.RoomChat
+	err := r.db.Joins("JOIN \"order\" ON \"order\".id_order = room_chat.id_order").
+		Where("\"order\".id_pelanggan = ?", currentOrder.PelangganID).
+		Preload("Order").Preload("Order.Pelanggan").Preload("Order.Karyawan").
+		First(&existingRoom).Error
+
+	if err == nil {
+		return &existingRoom, nil
+	}
+
+	room := model.RoomChat{
+		OrderID: orderID,
+	}
+	if err := r.db.Create(&room).Error; err != nil {
+		return nil, err
+	}
+	r.db.Preload("Order").Preload("Order.Pelanggan").Preload("Order.Karyawan").First(&room)
 	return &room, nil
 }

@@ -187,9 +187,10 @@ func (ctrl *authController) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    "Autentikasi berhasil.",
-		"token":      tokenString,
-		"id_role":    user.RoleID,
+		"message":      "Autentikasi berhasil.",
+		"token":        tokenString,
+		"id_role":      user.RoleID,
+		"id_user":      user.IDUser,
 		"display_name": displayName,
 	})
 }

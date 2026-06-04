@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PBL-Kelompok6-WishWash/backend/config"
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
 	"github.com/PBL-Kelompok6-WishWash/backend/utils"
@@ -50,6 +51,18 @@ func (c *ChatController) GetMessages(ctx *gin.Context) {
 		return
 	}
 
+	userIDFloat, exists := ctx.Get("id_user")
+	var userID uint
+	if exists {
+		userID = uint(userIDFloat.(float64))
+	}
+
+	if userID > 0 {
+		config.DB.Model(&model.PesanChat{}).
+			Where("id_room_chat = ? AND id_user != ?", uint(roomID), userID).
+			Update("status_baca", true)
+	}
+
 	messages, err := c.repo.GetMessagesByRoomID(uint(roomID))
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil riwayat pesan"})
@@ -74,7 +87,47 @@ func (c *ChatController) GetRooms(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"data": rooms})
+	type RoomResponse struct {
+		IDRoomChat  uint            `json:"id_room_chat"`
+		OrderID     uint            `json:"id_order"`
+		WaktuDibuat time.Time       `json:"waktu_dibuat"`
+		Order       model.Order     `json:"Order"`
+		LastMessage *model.PesanChat `json:"LastMessage"`
+		UnreadCount int64           `json:"unread_count"`
+	}
+
+	var responseData []RoomResponse
+	for _, room := range rooms {
+		var lastMsg model.PesanChat
+		errLast := config.DB.Where("id_room_chat = ?", room.IDRoomChat).
+			Order("waktu_kirim desc").
+			Preload("ChatGambar").
+			First(&lastMsg).Error
+		
+		var lastMsgPtr *model.PesanChat
+		if errLast == nil {
+			if len(lastMsg.ChatGambar) > 0 {
+				lastMsg.PathGambar = lastMsg.ChatGambar[0].PathGambar
+			}
+			lastMsgPtr = &lastMsg
+		}
+		
+		var unreadCount int64
+		config.DB.Model(&model.PesanChat{}).
+			Where("id_room_chat = ? AND status_baca = ? AND id_user != ?", room.IDRoomChat, false, userID).
+			Count(&unreadCount)
+		
+		responseData = append(responseData, RoomResponse{
+			IDRoomChat:  room.IDRoomChat,
+			OrderID:     room.OrderID,
+			WaktuDibuat: room.WaktuDibuat,
+			Order:       room.Order,
+			LastMessage: lastMsgPtr,
+			UnreadCount: unreadCount,
+		})
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"data": responseData})
 }
 
 // 1.6. HTTP Endpoint: Mendapatkan atau membuat Room Chat baru berdasarkan ID Order
