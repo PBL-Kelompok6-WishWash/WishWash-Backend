@@ -12,6 +12,7 @@ type OrderRepository interface {
 	FindAllByPelangganID(pelangganID uint) ([]model.Order, error)
 	FindAll() ([]model.Order, error)
 	FindByID(idOrder uint) (*model.Order, error)
+	FindByKodeOrder(kodeOrder string) (*model.Order, error)
 	Update(order *model.Order) error
 }
 
@@ -125,6 +126,27 @@ func (r *orderRepository) FindByID(idOrder uint) (*model.Order, error) {
 	return &order, nil
 }
 
+func (r *orderRepository) FindByKodeOrder(kodeOrder string) (*model.Order, error) {
+	var order model.Order
+	err := r.db.Preload("PaketLayanan").
+		Preload("Pelanggan").
+		Preload("AlamatPengambilan").
+		Preload("AlamatPenyerahan").
+		Preload("Parfum").
+		Preload("Layanan.ReferensiStatus").
+		Preload("Karyawan").
+		Preload("RiwayatStatusDetail.ReferensiStatus").
+		Preload("Pembayaran").
+		Preload("PromoOrder.Promo").
+		Preload("Penilaian").
+		Where("kode_order = ?", kodeOrder).
+		First(&order).Error
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
+
 func (r *orderRepository) FindAll() ([]model.Order, error) {
 	var orders []model.Order
 	err := r.db.Preload("PaketLayanan").
@@ -144,5 +166,5 @@ func (r *orderRepository) FindAll() ([]model.Order, error) {
 }
 
 func (r *orderRepository) Update(order *model.Order) error {
-	return r.db.Save(order).Error
+	return r.db.Omit("AlamatPenyerahan", "AlamatPengambilan", "Pelanggan", "PaketLayanan", "Parfum", "Layanan", "Karyawan").Save(order).Error
 }

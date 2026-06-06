@@ -27,6 +27,7 @@ type OrderController interface {
 	GetOrdersPelanggan(c *gin.Context)
 	CreateOrder(c *gin.Context)
 	GetOrderByID(c *gin.Context)
+	GetOrderByKode(c *gin.Context)
 	UpdateOrder(c *gin.Context)
 	ScanQR(c *gin.Context)
 	GetRevenueSummary(c *gin.Context)
@@ -210,6 +211,26 @@ func (ctrl *orderController) GetOrderByID(c *gin.Context) {
 	}
 
 	order, err := ctrl.orderRepo.FindByID(uint(idOrder))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pesanan tidak ditemukan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Data pesanan berhasil diambil",
+		"data":    order,
+	})
+}
+
+func (ctrl *orderController) GetOrderByKode(c *gin.Context) {
+	kodeOrder := c.Param("kode")
+	if kodeOrder == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode order tidak valid"})
+		return
+	}
+
+	order, err := ctrl.orderRepo.FindByKodeOrder(kodeOrder)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Pesanan tidak ditemukan"})
 		return
