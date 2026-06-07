@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -281,6 +282,8 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		AlamatPengambilanID *uint    `json:"id_alamat_pengambilan"`
 		CatatanOrder        string   `json:"catatan_order"`
 		IsCourierOnWay      *bool    `json:"is_courier_on_way"`
+		CourierLatitude     string   `json:"courier_latitude"`
+		CourierLongitude    string   `json:"courier_longitude"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -314,6 +317,34 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		}
 
 		if errRef == nil {
+			// Update the completion time of the previous status to now
+			var latestHistory model.RiwayatStatusDetail
+			errLatest := config.DB.Preload("ReferensiStatus").
+				Where("id_order = ?", order.IDOrder).
+				Order("id_riwayat_status_detail desc").
+				First(&latestHistory).Error
+			
+			if errLatest == nil {
+				log.Printf("[DEBUG-TIMESTAMP] latestHistory ID: %d, status: %s, WaktuUpdate before: %s", latestHistory.IDRiwayat, latestHistory.ReferensiStatus.NamaStatus, latestHistory.WaktuUpdate)
+				errUpdate := config.DB.Model(&latestHistory).Update("waktu_update", time.Now()).Error
+				if errUpdate != nil {
+					log.Printf("[DEBUG-TIMESTAMP] Error updating: %v", errUpdate)
+				} else {
+					log.Printf("[DEBUG-TIMESTAMP] Successfully updated DB to now: %s", time.Now())
+				}
+				
+				// Also update the local in-memory order struct to prevent GORM from overwriting it upon save
+				for i, h := range order.RiwayatStatusDetail {
+					log.Printf("[DEBUG-TIMESTAMP] Checking in-memory ID: %d", h.IDRiwayat)
+					if h.IDRiwayat == latestHistory.IDRiwayat {
+						order.RiwayatStatusDetail[i].WaktuUpdate = time.Now()
+						log.Printf("[DEBUG-TIMESTAMP] Matched and updated in-memory slice for index %d", i)
+					}
+				}
+			} else {
+				log.Printf("[DEBUG-TIMESTAMP] errLatest: %v", errLatest)
+			}
+
 			// Buat riwayat status detail baru
 			history := model.RiwayatStatusDetail{
 				ReferensiStatusID: refStatus.IDReferensiStatus,
@@ -324,34 +355,6 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 			if err := config.DB.Create(&history).Error; err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan riwayat status: " + err.Error()})
 				return
-			}
-
-			// If the order is transitioning away from "Pesanan Diterima" (i.e. it was accepted by the employee)
-			isCurrentDiterima := false
-			if len(order.RiwayatStatusDetail) > 0 {
-				var maxUrutan int = 0
-				var currentStatusName string
-				for _, h := range order.RiwayatStatusDetail {
-					if h.ReferensiStatus.UrutanTahap > maxUrutan {
-						maxUrutan = h.ReferensiStatus.UrutanTahap
-						currentStatusName = h.ReferensiStatus.NamaStatus
-					}
-				}
-				if currentStatusName == "Pesanan Diterima" || maxUrutan == 1 {
-					isCurrentDiterima = true
-				}
-			} else {
-				isCurrentDiterima = true
-			}
-
-			if isCurrentDiterima {
-				var diterimaStatus model.ReferensiStatusLayanan
-				errDiterima := config.DB.Where("id_layanan = ? AND urutan_tahap = 1", order.LayananID).First(&diterimaStatus).Error
-				if errDiterima == nil {
-					config.DB.Model(&model.RiwayatStatusDetail{}).
-						Where("order_id = ? AND referensi_status_id = ?", order.IDOrder, diterimaStatus.IDReferensiStatus).
-						Update("waktu_update", time.Now())
-				}
 			}
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Status '" + input.Status + "' tidak ditemukan untuk layanan ini"})
@@ -387,12 +390,18 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 	if input.CatatanOrder != "" {
 		order.CatatanOrder = input.CatatanOrder
 	}
+	if input.CourierLatitude != "" {
+		order.CourierLatitude = input.CourierLatitude
+	}
+	if input.CourierLongitude != "" {
+		order.CourierLongitude = input.CourierLongitude
+	}
 	if input.IsCourierOnWay != nil {
 		order.IsCourierOnWay = *input.IsCourierOnWay
 		if *input.IsCourierOnWay {
 			var latestHistory model.RiwayatStatusDetail
 			errLatest := config.DB.Preload("ReferensiStatus").
-				Where("order_id = ?", order.IDOrder).
+				Where("id_order = ?", order.IDOrder).
 				Order("id_riwayat_status_detail desc").
 				First(&latestHistory).Error
 			
@@ -400,6 +409,13 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				statusName := latestHistory.ReferensiStatus.NamaStatus
 				if statusName == "Penjemputan" || statusName == "Siap Diantar" {
 					config.DB.Model(&latestHistory).Update("waktu_update", time.Now())
+					
+					// Also update the local in-memory order struct to prevent GORM from overwriting it upon save
+					for i, h := range order.RiwayatStatusDetail {
+						if h.IDRiwayat == latestHistory.IDRiwayat {
+							order.RiwayatStatusDetail[i].WaktuUpdate = time.Now()
+						}
+					}
 				}
 			}
 		}
