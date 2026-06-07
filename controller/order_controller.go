@@ -325,6 +325,17 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan riwayat status: " + err.Error()})
 				return
 			}
+
+			// If status is updated to stage 2 (Penjemputan), update stage 1 (Pesanan Diterima) timestamp to now
+			if refStatus.UrutanTahap == 2 {
+				var diterimaStatus model.ReferensiStatusLayanan
+				errDiterima := config.DB.Where("id_layanan = ? AND urutan_tahap = 1", order.LayananID).First(&diterimaStatus).Error
+				if errDiterima == nil {
+					config.DB.Model(&model.RiwayatStatusDetail{}).
+						Where("order_id = ? AND referensi_status_id = ?", order.IDOrder, diterimaStatus.IDReferensiStatus).
+						Update("waktu_update", time.Now())
+				}
+			}
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Status '" + input.Status + "' tidak ditemukan untuk layanan ini"})
 			return
@@ -361,6 +372,20 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 	}
 	if input.IsCourierOnWay != nil {
 		order.IsCourierOnWay = *input.IsCourierOnWay
+		if *input.IsCourierOnWay {
+			var latestHistory model.RiwayatStatusDetail
+			errLatest := config.DB.Preload("ReferensiStatus").
+				Where("order_id = ?", order.IDOrder).
+				Order("id_riwayat_status_detail desc").
+				First(&latestHistory).Error
+			
+			if errLatest == nil && latestHistory.ReferensiStatus.IDReferensiStatus != 0 {
+				statusName := latestHistory.ReferensiStatus.NamaStatus
+				if statusName == "Penjemputan" || statusName == "Siap Diantar" {
+					config.DB.Model(&latestHistory).Update("waktu_update", time.Now())
+				}
+			}
+		}
 	}
 
 	// Jika Karyawan meng-update order, set KaryawanID di order
