@@ -326,8 +326,25 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				return
 			}
 
-			// If status is updated to stage 2 (Penjemputan), update stage 1 (Pesanan Diterima) timestamp to now
-			if refStatus.UrutanTahap == 2 {
+			// If the order is transitioning away from "Pesanan Diterima" (i.e. it was accepted by the employee)
+			isCurrentDiterima := false
+			if len(order.RiwayatStatusDetail) > 0 {
+				var maxUrutan int = 0
+				var currentStatusName string
+				for _, h := range order.RiwayatStatusDetail {
+					if h.ReferensiStatus.UrutanTahap > maxUrutan {
+						maxUrutan = h.ReferensiStatus.UrutanTahap
+						currentStatusName = h.ReferensiStatus.NamaStatus
+					}
+				}
+				if currentStatusName == "Pesanan Diterima" || maxUrutan == 1 {
+					isCurrentDiterima = true
+				}
+			} else {
+				isCurrentDiterima = true
+			}
+
+			if isCurrentDiterima {
 				var diterimaStatus model.ReferensiStatusLayanan
 				errDiterima := config.DB.Where("id_layanan = ? AND urutan_tahap = 1", order.LayananID).First(&diterimaStatus).Error
 				if errDiterima == nil {
