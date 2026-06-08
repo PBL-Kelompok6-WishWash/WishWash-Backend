@@ -200,7 +200,24 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	}
 
 	// Trigger notification for admins
-	go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Baru Masuk 🧺", fmt.Sprintf("Pesanan baru dengan kode %s telah masuk.", order.KodeOrder))
+	namaPelanggan := "Pelanggan"
+	if order.Pelanggan.NamaLengkap != "" {
+		namaPelanggan = order.Pelanggan.NamaLengkap
+	}
+	detailLayanan := ""
+	if order.Layanan.NamaLayanan != "" {
+		detailLayanan = order.Layanan.NamaLayanan
+		if order.PaketLayanan.NamaPaket != "" {
+			detailLayanan = fmt.Sprintf("%s (%s)", order.Layanan.NamaLayanan, order.PaketLayanan.NamaPaket)
+		}
+	}
+	var msg string
+	if detailLayanan != "" {
+		msg = fmt.Sprintf("Pesanan baru dengan kode %s atas nama %s (Layanan: %s) telah masuk.", order.KodeOrder, namaPelanggan, detailLayanan)
+	} else {
+		msg = fmt.Sprintf("Pesanan baru dengan kode %s atas nama %s telah masuk.", order.KodeOrder, namaPelanggan)
+	}
+	go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Baru Masuk 🧺", msg)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -410,7 +427,11 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 			}
 
 			if refStatus.NamaStatus == "Selesai" {
-				go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Selesai 🚀", fmt.Sprintf("Pesanan %s telah selesai diproses.", order.KodeOrder))
+				namaPelanggan := "Pelanggan"
+				if order.Pelanggan.NamaLengkap != "" {
+					namaPelanggan = order.Pelanggan.NamaLengkap
+				}
+				go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Selesai 🚀", fmt.Sprintf("Pesanan %s atas nama %s telah selesai diproses.", order.KodeOrder, namaPelanggan))
 			}
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Status '" + targetStatus + "' tidak ditemukan untuk layanan ini"})
@@ -528,7 +549,11 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		}
 
 		if input.StatusPembayaran == "Paid" || input.StatusPembayaran == "Lunas" {
-			go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pembayaran Berhasil 💳", fmt.Sprintf("Pembayaran untuk pesanan %s telah berhasil diterima.", order.KodeOrder))
+			namaPelanggan := "Pelanggan"
+			if order.Pelanggan.NamaLengkap != "" {
+				namaPelanggan = order.Pelanggan.NamaLengkap
+			}
+			go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pembayaran Berhasil 💳", fmt.Sprintf("Pembayaran untuk pesanan %s atas nama %s telah berhasil diterima.", order.KodeOrder, namaPelanggan))
 		}
 	}
 
@@ -635,7 +660,11 @@ func (ctrl *orderController) ScanQR(c *gin.Context) {
 	}
 
 	if nextStatus.NamaStatus == "Selesai" {
-		go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Selesai 🚀", fmt.Sprintf("Pesanan %s telah selesai diproses.", order.KodeOrder))
+		namaPelanggan := "Pelanggan"
+		if order.Pelanggan.NamaLengkap != "" {
+			namaPelanggan = order.Pelanggan.NamaLengkap
+		}
+		go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Selesai 🚀", fmt.Sprintf("Pesanan %s atas nama %s telah selesai diproses.", order.KodeOrder, namaPelanggan))
 	}
 
 	updatedOrder, _ := ctrl.orderRepo.FindByID(order.IDOrder)

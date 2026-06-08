@@ -16,22 +16,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var o model.Order
-	err = db.Preload("Layanan.ReferensiStatus").
-		Preload("RiwayatStatusDetail.ReferensiStatus").
-		Where("kode_order = ?", "WW-E0OWSK").
-		First(&o).Error
+	var order model.Order
+	err = db.Preload("RiwayatStatusDetail.ReferensiStatus").First(&order, 33).Error
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Order: %s, Layanan: %s\n", o.KodeOrder, o.Layanan.NamaLayanan)
-	fmt.Println("  History Status Detail:")
-	for _, r := range o.RiwayatStatusDetail {
-		fmt.Printf("    - ID: %d, Status: %s, Waktu: %s\n", r.IDRiwayat, r.ReferensiStatus.NamaStatus, r.WaktuUpdate)
-	}
-	fmt.Println("  Referensi Status Layanan:")
-	for _, rs := range o.Layanan.ReferensiStatus {
-		fmt.Printf("    - ID: %d, Status: %s, Urutan: %d\n", rs.IDReferensiStatus, rs.NamaStatus, rs.UrutanTahap)
+	fmt.Printf("Order ID: %d | Kode: %s | Qty: %.2f\n", order.IDOrder, order.KodeOrder, order.Kuantitas)
+	fmt.Println("History entries:")
+	for i, rs := range order.RiwayatStatusDetail {
+		fmt.Printf("  [%d] ID: %d | RefStatusID: %d | Status: %s | Waktu: %s\n", 
+			i, rs.IDRiwayat, rs.ReferensiStatusID, rs.ReferensiStatus.NamaStatus, rs.WaktuUpdate)
 	}
 }

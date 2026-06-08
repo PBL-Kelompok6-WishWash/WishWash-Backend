@@ -131,6 +131,13 @@ func main() {
 		promoPubRoutes.GET("", promoController.GetAll)
 	}
 
+	// Rute Parfum Pelanggan (General Authenticated Users)
+	parfumPubRoutes := api.Group("/parfum")
+	parfumPubRoutes.Use(middleware.JWTAuthMiddleware())
+	{
+		parfumPubRoutes.GET("", parfumController.GetAll)
+	}
+
 	// chatRoutes := api.Group("/chat")
 	// chatRoutes.Use(middleware.JWTAuthMiddleware()) // Dipasang satpam token biar aman
 	// {
