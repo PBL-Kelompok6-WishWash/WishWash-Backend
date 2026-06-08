@@ -62,6 +62,31 @@ func (r *orderRepository) Create(order *model.Order) error {
 					if err := tx.Create(&timbangHistory).Error; err != nil {
 						return err
 					}
+
+					// If quantity is already provided (>0), automatically progress to the next status after Proses Timbang
+					if order.Kuantitas > 0 {
+						var refStatuses []model.ReferensiStatusLayanan
+						tx.Where("id_layanan = ?", order.LayananID).Order("urutan_tahap asc").Find(&refStatuses)
+						timbangIdx := -1
+						for i, ref := range refStatuses {
+							if ref.IDReferensiStatus == timbangStatus.IDReferensiStatus {
+								timbangIdx = i
+								break
+							}
+						}
+						if timbangIdx != -1 && timbangIdx < len(refStatuses)-1 {
+							nextStatus := refStatuses[timbangIdx+1]
+							nextHistory := model.RiwayatStatusDetail{
+								ReferensiStatusID: nextStatus.IDReferensiStatus,
+								OrderID:           order.IDOrder,
+								KaryawanID:        order.KaryawanID,
+								WaktuUpdate:       time.Now().Add(2 * time.Second),
+							}
+							if err := tx.Create(&nextHistory).Error; err != nil {
+								return err
+							}
+						}
+					}
 				}
 			}
 		}

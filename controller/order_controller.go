@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/PBL-Kelompok6-WishWash/backend/config"
@@ -291,12 +292,58 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		return
 	}
 
-	// 4. Update status jika dikirim
-	if input.Status != "" {
+	// 4. Update status jika dikirim atau otomatis jika kuantitas di-update > 0
+	targetStatus := input.Status
+	if input.Kuantitas != nil && *input.Kuantitas > 0 {
+		// Dapatkan status saat ini
+		currentStatus := "Pesanan Diterima"
+		if len(order.RiwayatStatusDetail) > 0 {
+			maxUrutan := 0
+			for _, rs := range order.RiwayatStatusDetail {
+				if rs.ReferensiStatus.UrutanTahap > maxUrutan {
+					maxUrutan = rs.ReferensiStatus.UrutanTahap
+					currentStatus = rs.ReferensiStatus.NamaStatus
+				}
+			}
+		}
+
+		lowerCurrent := strings.ToLower(currentStatus)
+		statusIsBeforeOrAtTimbang := strings.Contains(lowerCurrent, "timbang") || 
+			strings.Contains(lowerCurrent, "jemput") || 
+			strings.Contains(lowerCurrent, "terima")
+
+		inputStatusLower := strings.ToLower(targetStatus)
+		inputStatusIsBeforeOrAtTimbang := targetStatus == "" || 
+			strings.Contains(inputStatusLower, "timbang") || 
+			strings.Contains(inputStatusLower, "jemput") || 
+			strings.Contains(inputStatusLower, "terima")
+
+		if statusIsBeforeOrAtTimbang && inputStatusIsBeforeOrAtTimbang {
+			var refStatuses []model.ReferensiStatusLayanan
+			config.DB.Where("id_layanan = ?", order.LayananID).Order("urutan_tahap asc").Find(&refStatuses)
+			
+			timbangIdx := -1
+			for i, ref := range refStatuses {
+				refNameLower := strings.ToLower(ref.NamaStatus)
+				if strings.Contains(refNameLower, "timbang") {
+					timbangIdx = i
+					break
+				}
+			}
+			
+			if timbangIdx != -1 && timbangIdx < len(refStatuses)-1 {
+				targetStatus = refStatuses[timbangIdx+1].NamaStatus
+			} else {
+				targetStatus = "Proses Cuci"
+			}
+		}
+	}
+
+	if targetStatus != "" {
 		var refStatus model.ReferensiStatusLayanan
 		var errRef error
 		
-		if input.Status == "Dibatalkan" || input.Status == "Batal" {
+		if targetStatus == "Dibatalkan" || targetStatus == "Batal" {
 			errRef = config.DB.Where("id_layanan = ? AND nama_status = ?", order.LayananID, "Dibatalkan").First(&refStatus).Error
 			if errRef != nil {
 				var maxUrutan int
@@ -310,9 +357,9 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				errRef = nil
 			}
 		} else {
-			errRef = config.DB.Where("id_layanan = ? AND nama_status = ?", order.LayananID, input.Status).First(&refStatus).Error
+			errRef = config.DB.Where("id_layanan = ? AND nama_status = ?", order.LayananID, targetStatus).First(&refStatus).Error
 			if errRef != nil {
-				errRef = config.DB.Where("id_layanan = ? AND LOWER(nama_status) = LOWER(?)", order.LayananID, input.Status).First(&refStatus).Error
+				errRef = config.DB.Where("id_layanan = ? AND LOWER(nama_status) = LOWER(?)", order.LayananID, targetStatus).First(&refStatus).Error
 			}
 		}
 
@@ -357,7 +404,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				return
 			}
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Status '" + input.Status + "' tidak ditemukan untuk layanan ini"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Status '" + targetStatus + "' tidak ditemukan untuk layanan ini"})
 			return
 		}
 	}

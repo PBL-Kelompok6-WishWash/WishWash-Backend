@@ -2,22 +2,27 @@ package main
 
 import (
 	"log"
+	"strings"
+	"time"
 	// "net/http"
 
 	"github.com/PBL-Kelompok6-WishWash/backend/config"
 	"github.com/PBL-Kelompok6-WishWash/backend/controller"
 	"github.com/PBL-Kelompok6-WishWash/backend/middleware"
+	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"github.com/PBL-Kelompok6-WishWash/backend/repository"
 	"github.com/PBL-Kelompok6-WishWash/backend/route"
 	"github.com/PBL-Kelompok6-WishWash/backend/seeder"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func main() {
 	// 1. Nyalakan Mesin Database
 	config.ConnectDatabase()
 	seeder.RunAllSeeders(config.DB)
+	fixInconsistentOrders(config.DB)
 
 	// 2. Pekerjakan "Koki" (Repository)
 	userRepo := repository.NewUserRepository(config.DB)
@@ -198,4 +203,77 @@ func main() {
 	if err := r.Run(":8080"); err != nil {
 		log.Fatal("Gagal menjalankan server: ", err)
 	}
+}
+
+func fixInconsistentOrders(db *gorm.DB) {
+	log.Println("🔧 Memulai pemeriksaan konsistensi data pesanan di database...")
+	var orders []model.Order
+	err := db.Preload("RiwayatStatusDetail.ReferensiStatus").Find(&orders).Error
+	if err != nil {
+		log.Printf("❌ Gagal mengambil data pesanan untuk koreksi: %v", err)
+		return
+	}
+
+	correctedCount := 0
+	for _, order := range orders {
+		if order.Kuantitas <= 0 {
+			continue
+		}
+
+		// Cari status terakhir
+		currentStatus := "Pesanan Diterima"
+		maxUrutan := 0
+		for _, rs := range order.RiwayatStatusDetail {
+			if rs.ReferensiStatus.UrutanTahap > maxUrutan {
+				maxUrutan = rs.ReferensiStatus.UrutanTahap
+				currentStatus = rs.ReferensiStatus.NamaStatus
+			}
+		}
+
+		// Jika status saat ini masih di bawah/sama dengan Proses Timbang
+		lowerCurrent := strings.ToLower(currentStatus)
+		if strings.Contains(lowerCurrent, "timbang") || strings.Contains(lowerCurrent, "jemput") || strings.Contains(lowerCurrent, "terima") {
+			// Cari status Proses Timbang untuk mendapatkan ID-nya jika diperlukan
+			var refStatuses []model.ReferensiStatusLayanan
+			db.Where("id_layanan = ?", order.LayananID).Order("urutan_tahap asc").Find(&refStatuses)
+
+			timbangIdx := -1
+			for i, ref := range refStatuses {
+				refNameLower := strings.ToLower(ref.NamaStatus)
+				if strings.Contains(refNameLower, "timbang") {
+					timbangIdx = i
+					break
+				}
+			}
+
+			// Jika Proses Timbang ditemukan, cari status setelahnya
+			if timbangIdx != -1 && timbangIdx < len(refStatuses)-1 {
+				nextStatus := refStatuses[timbangIdx+1]
+				
+				// Pastikan status tersebut belum ada di riwayat agar tidak duplikat
+				alreadyHasNext := false
+				for _, rs := range order.RiwayatStatusDetail {
+					if rs.ReferensiStatusID == nextStatus.IDReferensiStatus {
+						alreadyHasNext = true
+						break
+					}
+				}
+
+				if !alreadyHasNext {
+					newHistory := model.RiwayatStatusDetail{
+						ReferensiStatusID: nextStatus.IDReferensiStatus,
+						OrderID:           order.IDOrder,
+						KaryawanID:        nil,
+						WaktuUpdate:       time.Now(),
+					}
+					if err := db.Create(&newHistory).Error; err == nil {
+						correctedCount++
+						log.Printf("✅ Koreksi Pesanan #%s: Status dimajukan dari '%s' ke '%s' karena berat sudah diisi (%v kg)", 
+							order.KodeOrder, currentStatus, nextStatus.NamaStatus, order.Kuantitas)
+					}
+				}
+			}
+		}
+	}
+	log.Printf("🔧 Pemeriksaan selesai. Berhasil mengoreksi %d data pesanan.", correctedCount)
 }
