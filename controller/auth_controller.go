@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -33,17 +34,19 @@ type AuthController interface {
 }
 
 type authController struct {
-	userRepo      repository.UserRepository
-	pelangganRepo repository.PelangganRepository
-	karyawanRepo  repository.KaryawanRepository
-	adminRepo     repository.AdminRepository
+	userRepo       repository.UserRepository
+	pelangganRepo  repository.PelangganRepository
+	karyawanRepo   repository.KaryawanRepository
+	adminRepo      repository.AdminRepository
+	notifikasiRepo repository.NotifikasiRepository
 }
 
 func NewAuthController(userRepo repository.UserRepository,
 						pelangganRepo repository.PelangganRepository,
 						karyawanRepo repository.KaryawanRepository,
-						adminRepo repository.AdminRepository,) AuthController {
-						return &authController{userRepo, pelangganRepo, karyawanRepo, adminRepo}
+						adminRepo repository.AdminRepository,
+						notifikasiRepo repository.NotifikasiRepository) AuthController {
+						return &authController{userRepo, pelangganRepo, karyawanRepo, adminRepo, notifikasiRepo}
 }
 
 // 4. Logika Register
@@ -101,6 +104,9 @@ func (ctrl *authController) Register(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan profil pelanggan"})
 			return
 		}
+		
+		// Trigger notification for admins
+		go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pelanggan Baru 🎉", fmt.Sprintf("Pelanggan baru bernama %s (@%s) telah terdaftar.", pelanggan.NamaLengkap, user.Username))
 	case 2:
 		karyawan := model.Karyawan{
 			UserID:             user.IDUser,

@@ -33,11 +33,12 @@ func main() {
 	parfumRepo := repository.NewParfumRepository(config.DB)
 	promoRepo := repository.NewPromoRepository(config.DB)
 	alamatRepo := repository.NewAlamatRepository(config.DB)
+	notifikasiRepo := repository.NewNotifikasiRepository(config.DB)
 	orderRepo := repository.NewOrderRepository(config.DB)
 	chatRepo := repository.NewChatRepository(config.DB)
 
 	// 3. Pekerjakan "Pelayan" (Controller)
-	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo)
+	authController := controller.NewAuthController(userRepo, pelangganRepo, karyawanRepo, adminRepo, notifikasiRepo)
 	pelangganController := controller.NewPelangganController(pelangganRepo, userRepo)
 	karyawanController := controller.NewKaryawanController(karyawanRepo, userRepo)
 	profileController := controller.NewProfileController(userRepo, adminRepo, karyawanRepo, pelangganRepo, alamatRepo)
@@ -46,9 +47,10 @@ func main() {
 	promoController := controller.NewPromoController(promoRepo)
 	metodePembayaranController := controller.NewMetodePembayaranController(config.DB)
 	alamatController := controller.NewAlamatController(alamatRepo, pelangganRepo)
-	orderController := controller.NewOrderController(orderRepo, pelangganRepo, karyawanRepo)
+	orderController := controller.NewOrderController(orderRepo, pelangganRepo, karyawanRepo, notifikasiRepo)
 	chatController := controller.NewChatController(chatRepo)
 	penilaianController := controller.NewPenilaianController(config.DB)
+	notifikasiController := controller.NewNotifikasiController(notifikasiRepo)
 
 	// 4. Buka "Pintu Depan" menggunakan Gin Router
 	r := gin.Default()
@@ -196,6 +198,11 @@ func main() {
 		adminRoutes.POST("/metode-pembayaran", metodePembayaranController.Create)
 		adminRoutes.PUT("/metode-pembayaran/:id", metodePembayaranController.Update)
 		adminRoutes.DELETE("/metode-pembayaran/:id", metodePembayaranController.Delete)
+
+		// Rute Notifikasi
+		adminRoutes.GET("/notifikasi", notifikasiController.GetNotifications)
+		adminRoutes.PUT("/notifikasi/:id/read", notifikasiController.MarkAsRead)
+		adminRoutes.PUT("/notifikasi/read-all", notifikasiController.MarkAllAsRead)
 	}
 
 	// 6. Buka restoran di port 8080

@@ -36,14 +36,16 @@ type OrderController interface {
 }
 
 type orderController struct {
-	orderRepo     repository.OrderRepository
-	pelangganRepo repository.PelangganRepository
-	karyawanRepo  repository.KaryawanRepository
+	orderRepo      repository.OrderRepository
+	pelangganRepo  repository.PelangganRepository
+	karyawanRepo   repository.KaryawanRepository
+	notifikasiRepo repository.NotifikasiRepository
 }
 
-func NewOrderController(oRepo repository.OrderRepository, pRepo repository.PelangganRepository, kRepo repository.KaryawanRepository) OrderController {
-	return &orderController{oRepo, pRepo, kRepo}
+func NewOrderController(oRepo repository.OrderRepository, pRepo repository.PelangganRepository, kRepo repository.KaryawanRepository, nRepo repository.NotifikasiRepository) OrderController {
+	return &orderController{oRepo, pRepo, kRepo, nRepo}
 }
+
 
 func (ctrl *orderController) getPelangganIDFromContext(c *gin.Context) (uint, error) {
 	userIDFloat, exists := c.Get("id_user")
@@ -196,6 +198,9 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan pesanan: " + err.Error()})
 		return
 	}
+
+	// Trigger notification for admins
+	go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Baru Masuk 🧺", fmt.Sprintf("Pesanan baru dengan kode %s telah masuk.", order.KodeOrder))
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -403,6 +408,10 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan riwayat status: " + err.Error()})
 				return
 			}
+
+			if refStatus.NamaStatus == "Selesai" {
+				go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Selesai 🚀", fmt.Sprintf("Pesanan %s telah selesai diproses.", order.KodeOrder))
+			}
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Status '" + targetStatus + "' tidak ditemukan untuk layanan ini"})
 			return
@@ -517,6 +526,10 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 			}
 			config.DB.Create(&pembayaran)
 		}
+
+		if input.StatusPembayaran == "Paid" || input.StatusPembayaran == "Lunas" {
+			go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pembayaran Berhasil 💳", fmt.Sprintf("Pembayaran untuk pesanan %s telah berhasil diterima.", order.KodeOrder))
+		}
 	}
 
 	// Fetch kembali data lengkap untuk dikembalikan ke client
@@ -619,6 +632,10 @@ func (ctrl *orderController) ScanQR(c *gin.Context) {
 	if err := config.DB.Create(&history).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Gagal mengupdate status pesanan", "error": err.Error()})
 		return
+	}
+
+	if nextStatus.NamaStatus == "Selesai" {
+		go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Selesai 🚀", fmt.Sprintf("Pesanan %s telah selesai diproses.", order.KodeOrder))
 	}
 
 	updatedOrder, _ := ctrl.orderRepo.FindByID(order.IDOrder)
