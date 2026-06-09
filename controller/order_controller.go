@@ -138,6 +138,7 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	}
 
 	var karyawanID *uint
+	var karyawanName = "Petugas"
 	if roleID == 1 || roleID == 2 {
 		if input.PelangganID == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "ID Pelanggan wajib diisi untuk Karyawan/Admin"})
@@ -151,6 +152,9 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 			karyawan, errKaryawan := ctrl.karyawanRepo.FindByUserID(userID)
 			if errKaryawan == nil {
 				karyawanID = &karyawan.IDKaryawan
+				if karyawan.NamaKaryawan != "" {
+					karyawanName = karyawan.NamaKaryawan
+				}
 			}
 		}
 	} else {
@@ -207,7 +211,7 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	detailLayanan := ""
 	if order.Layanan.NamaLayanan != "" {
 		detailLayanan = order.Layanan.NamaLayanan
-		if order.PaketLayanan.NamaPaket != "" {
+		if order.PaketLayanan != nil && order.PaketLayanan.NamaPaket != "" {
 			detailLayanan = fmt.Sprintf("%s (%s)", order.Layanan.NamaLayanan, order.PaketLayanan.NamaPaket)
 		}
 	}
@@ -217,7 +221,23 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	} else {
 		msg = fmt.Sprintf("Pesanan baru dengan kode %s atas nama %s telah masuk.", order.KodeOrder, namaPelanggan)
 	}
-	go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Baru Masuk 🧺", msg)
+	go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Baru Masuk 🧺", msg)	// Trigger notification for customer if created by employee/admin
+	if roleID == 1 || roleID == 2 {
+		go func(nameKaryawan string) {
+			cust, errCust := ctrl.pelangganRepo.FindByID(pelangganID)
+			if errCust == nil {
+				title := fmt.Sprintf("Pesanan %s Dibuat 🧺", order.KodeOrder)
+				custMsg := fmt.Sprintf("Pesanan %s telah dibuat oleh karyawan %s.", order.KodeOrder, nameKaryawan)
+				errNotif := ctrl.notifikasiRepo.CreateNotificationForUser(cust.UserID, title, custMsg)
+				if errNotif == nil {
+					var latestNotifQuery model.Notifikasi
+					if errQuery := config.DB.Where("id_user = ?", cust.UserID).Order("id_notifikasi desc").First(&latestNotifQuery).Error; errQuery == nil {
+						GlobalNotifHub.BroadcastNotification(cust.UserID, latestNotifQuery)
+					}
+				}
+			}
+		}(karyawanName)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -292,6 +312,9 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Pesanan tidak ditemukan"})
 		return
 	}
+
+	previousIsCourierOnWay := order.IsCourierOnWay
+	previousKuantitas := order.Kuantitas
 
 	// 3. Bind input JSON
 	var input struct {
@@ -560,6 +583,17 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 	// Fetch kembali data lengkap untuk dikembalikan ke client
 	updatedOrder, _ := ctrl.orderRepo.FindByID(order.IDOrder)
 
+	// Trigger customer notifications
+	if input.StatusPembayaran == "Paid" || input.StatusPembayaran == "Lunas" {
+		ctrl.triggerCustomerOrderNotification(order.IDOrder, "payment_paid", nil)
+	} else if input.Kuantitas != nil && previousKuantitas == 0 && *input.Kuantitas > 0 {
+		ctrl.triggerCustomerOrderNotification(order.IDOrder, "weighed", nil)
+	} else if targetStatus != "" {
+		ctrl.triggerCustomerOrderNotification(order.IDOrder, "status_update", nil)
+	} else if input.IsCourierOnWay != nil {
+		ctrl.triggerCustomerOrderNotification(order.IDOrder, "courier_status", &previousIsCourierOnWay)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Pesanan berhasil diperbarui",
@@ -668,6 +702,9 @@ func (ctrl *orderController) ScanQR(c *gin.Context) {
 	}
 
 	updatedOrder, _ := ctrl.orderRepo.FindByID(order.IDOrder)
+
+	// Trigger customer notification for status update
+	ctrl.triggerCustomerOrderNotification(order.IDOrder, "status_update", nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -816,5 +853,147 @@ func (ctrl *orderController) GetRevenueSummary(c *gin.Context) {
 		"percentage_trend":    trendText,
 		"transactions":        transactions,
 	})
+}
+
+func formatRupiah(amount float64) string {
+	s := fmt.Sprintf("%.0f", amount)
+	if len(s) <= 3 {
+		return "Rp " + s
+	}
+	var res []string
+	for len(s) > 3 {
+		res = append([]string{s[len(s)-3:]}, res...)
+		s = s[:len(s)-3]
+	}
+	res = append([]string{s}, res...)
+	return "Rp " + strings.Join(res, ".")
+}
+
+func (ctrl *orderController) triggerCustomerOrderNotification(orderID uint, notifType string, previousIsCourierOnWay *bool) {
+	go func() {
+		order, err := ctrl.orderRepo.FindByID(orderID)
+		if err != nil {
+			return
+		}
+
+		var title string
+		var message string
+
+		kodeOrder := order.KodeOrder
+		if kodeOrder == "" {
+			kodeOrder = fmt.Sprintf("WW-%d", order.IDOrder)
+		}
+		
+		layananName := order.Layanan.NamaLayanan
+		if layananName == "" {
+			layananName = "Layanan Laundry"
+		}
+		
+		packageName := "Reguler"
+		if order.PaketLayanan != nil && order.PaketLayanan.NamaPaket != "" {
+			packageName = order.PaketLayanan.NamaPaket
+		}
+
+		beratText := "Menunggu Timbang"
+		if order.Kuantitas > 0 {
+			beratText = fmt.Sprintf("%.1f kg", order.Kuantitas)
+		}
+
+		totalBayarText := formatRupiah(order.TotalBayar)
+
+		switch notifType {
+		case "payment_paid":
+			title = "Pembayaran Diterima 💳"
+			message = fmt.Sprintf("Pembayaran untuk pesanan %s (%s - %s - %s) sebesar %s telah kami terima. Terima kasih!",
+				kodeOrder, layananName, packageName, beratText, totalBayarText)
+		case "weighed":
+			title = "Cucian Selesai Ditimbang ⚖️"
+			message = fmt.Sprintf("Cucian Anda pada pesanan %s (%s - %s) telah ditimbang seberat %s. Total tagihan: %s.",
+				kodeOrder, layananName, packageName, beratText, totalBayarText)
+		case "courier_status":
+			if order.IsCourierOnWay {
+				currentStatus := ctrl.getOrderStatusName(order)
+				if strings.ToLower(currentStatus) == "siap diantar" {
+					title = "Cucianmu Sedang Diantar 🚚"
+					message = fmt.Sprintf("Kurir sedang dalam perjalanan mengantarkan pesanan %s (%s - %s - %s).",
+						kodeOrder, layananName, packageName, beratText)
+				} else {
+					title = "Kurir Menuju ke Lokasimu 🏍️"
+					message = "Kurir sedang dalam perjalanan ke lokasi Anda untuk mengambil cucian Anda."
+				}
+			} else {
+				if previousIsCourierOnWay != nil && *previousIsCourierOnWay {
+					currentStatus := ctrl.getOrderStatusName(order)
+					if strings.ToLower(currentStatus) == "siap diantar" {
+						title = "Kurir Pengantaran Tiba 📍"
+						message = fmt.Sprintf("Kurir telah sampai di lokasi tujuan Anda untuk menyerahkan pesanan %s (%s - %s - %s).",
+							kodeOrder, layananName, packageName, beratText)
+					} else {
+						title = "Kurir Sudah Sampai! 📍"
+						message = "Kurir telah tiba di lokasi penjemputan Anda. Silakan siapkan pakaian yang akan dilaundry."
+					}
+				}
+			}
+		case "status_update":
+			currentStatus := ctrl.getOrderStatusName(order)
+			switch strings.ToLower(currentStatus) {
+			case "pesanan diterima":
+				title = "Pesanan Dikonfirmasi 🧺"
+				message = fmt.Sprintf("Pesanan Anda dengan kode %s telah dikonfirmasi oleh petugas WishWash.", kodeOrder)
+			case "batal", "dibatalkan":
+				title = "Pesanan Dibatalkan Toko ❌"
+				message = fmt.Sprintf("Pesanan %s Anda telah dibatalkan oleh pihak WishWash Laundry. Hubungi kami untuk informasi lebih lanjut.", kodeOrder)
+			case "proses cuci":
+				title = "Cucian Sedang Dicuci 🧼"
+				message = fmt.Sprintf("Pesanan %s (%s - %s - %s) kini masuk ke tahap pencucian.",
+					kodeOrder, layananName, packageName, beratText)
+			case "proses kering":
+				title = "Cucian Sedang Dikeringkan 💨"
+				message = fmt.Sprintf("Pesanan %s (%s - %s - %s) sedang dikeringkan menggunakan mesin pengering.",
+					kodeOrder, layananName, packageName, beratText)
+			case "proses setrika", "proses lipat":
+				title = "Cucian Sedang Disetrika ✨"
+				message = fmt.Sprintf("Pesanan %s (%s - %s - %s) sedang disetrika dengan rapi.",
+					kodeOrder, layananName, packageName, beratText)
+			case "siap diantar":
+				parfumName := "Lavender Bliss"
+				if order.Parfum.NamaParfum != "" {
+					parfumName = order.Parfum.NamaParfum
+				}
+				title = "Cucianmu Sudah Siap! 🎉"
+				message = fmt.Sprintf("Pesanan %s (%s - %s - %s) selesai diproses dengan wangi %s dan siap diantar/diambil. Silakan pilih metode pembayaran.",
+					kodeOrder, layananName, packageName, beratText, parfumName)
+			case "selesai":
+				title = "Pesanan Selesai diserahkan 🌟"
+				message = fmt.Sprintf("Pesanan %s (%s - %s - %s) telah sukses diserahkan. Terima kasih!",
+					kodeOrder, layananName, packageName, beratText)
+			}
+		}
+
+		if title != "" && message != "" {
+			errNotif := ctrl.notifikasiRepo.CreateNotificationForUser(order.Pelanggan.UserID, title, message)
+			if errNotif == nil {
+				var latestNotif model.Notifikasi
+				if errQuery := config.DB.Where("id_user = ?", order.Pelanggan.UserID).Order("id_notifikasi desc").First(&latestNotif).Error; errQuery == nil {
+					GlobalNotifHub.BroadcastNotification(order.Pelanggan.UserID, latestNotif)
+				}
+			}
+		}
+	}()
+}
+
+func (ctrl *orderController) getOrderStatusName(order *model.Order) string {
+	if len(order.RiwayatStatusDetail) == 0 {
+		return "Pesanan Diterima"
+	}
+	maxUrutan := 0
+	currentStatus := "Pesanan Diterima"
+	for _, rs := range order.RiwayatStatusDetail {
+		if rs.ReferensiStatus.UrutanTahap > maxUrutan {
+			maxUrutan = rs.ReferensiStatus.UrutanTahap
+			currentStatus = rs.ReferensiStatus.NamaStatus
+		}
+	}
+	return currentStatus
 }
 

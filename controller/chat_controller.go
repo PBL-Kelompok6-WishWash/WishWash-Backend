@@ -35,11 +35,12 @@ var activeRooms = make(map[string]*RoomPool)
 var roomsMu sync.Mutex
 
 type ChatController struct {
-	repo repository.ChatRepository
+	repo      repository.ChatRepository
+	notifRepo repository.NotifikasiRepository
 }
 
-func NewChatController(repo repository.ChatRepository) *ChatController {
-	return &ChatController{repo: repo}
+func NewChatController(repo repository.ChatRepository, notifRepo repository.NotifikasiRepository) *ChatController {
+	return &ChatController{repo: repo, notifRepo: notifRepo}
 }
 
 // 1. HTTP Endpoint: Mengambil semua riwayat chat lama
@@ -190,12 +191,29 @@ func (c *ChatController) HandleWS(ctx *gin.Context) {
 		var incoming struct {
 			TeksPesan    string `json:"teks_pesan"`
 			Base64Gambar string `json:"base64_gambar"`
+			IsTyping     *bool  `json:"is_typing"`
 		}
 
 		// Membaca pesan JSON dari Flutter
 		err := conn.ReadJSON(&incoming)
 		if err != nil {
 			break // Keluar dari loop jika koneksi terputus
+		}
+
+		// Jika pesan berisi status typing, lakukan broadcast tanpa simpan ke DB
+		if incoming.IsTyping != nil {
+			pool.Mu.Lock()
+			for client := range pool.Clients {
+				if pool.Clients[client] != uint(userID) {
+					_ = client.WriteJSON(gin.H{
+						"type":      "typing",
+						"id_user":   userID,
+						"is_typing": *incoming.IsTyping,
+					})
+				}
+			}
+			pool.Mu.Unlock()
+			continue
 		}
 
 		roomIDUint, _ := strconv.ParseUint(roomIDStr, 10, 32)
@@ -232,6 +250,68 @@ func (c *ChatController) HandleWS(ctx *gin.Context) {
 		if err := c.repo.SaveMessage(&msg); err != nil {
 			continue
 		}
+
+		// Trigger notification for the other user in the room asynchronously
+		go func(msgObj model.PesanChat) {
+			var room model.RoomChat
+			if errRoom := config.DB.Preload("Order.Pelanggan").Preload("Order.Karyawan").First(&room, msgObj.RoomChatID).Error; errRoom == nil {
+				var targetUserID uint
+				var senderName string = "Seseorang"
+
+				if msgObj.UserID == room.Order.Pelanggan.UserID {
+					if room.Order.KaryawanID != nil && room.Order.Karyawan.UserID > 0 {
+						targetUserID = room.Order.Karyawan.UserID
+					}
+					if room.Order.Pelanggan.NamaLengkap != "" {
+						senderName = room.Order.Pelanggan.NamaLengkap
+					}
+				} else {
+					targetUserID = room.Order.Pelanggan.UserID
+					if room.Order.Karyawan.NamaKaryawan != "" {
+						senderName = "Karyawan " + room.Order.Karyawan.NamaKaryawan
+					}
+				}
+
+				shortMsg := msgObj.TeksPesan
+				if shortMsg == "" {
+					shortMsg = "📷 [Gambar]"
+				}
+				if len(shortMsg) > 60 {
+					shortMsg = shortMsg[:57] + "..."
+				}
+
+				if targetUserID > 0 {
+					errNotif := c.notifRepo.CreateNotificationForUser(
+						targetUserID,
+						fmt.Sprintf("Pesan Baru dari %s 💬", senderName),
+						shortMsg,
+					)
+					if errNotif == nil {
+						var latestNotif model.Notifikasi
+						if errQuery := config.DB.Where("id_user = ?", targetUserID).Order("id_notifikasi desc").First(&latestNotif).Error; errQuery == nil {
+							GlobalNotifHub.BroadcastNotification(targetUserID, latestNotif)
+						}
+					}
+				} else {
+					var adminsAndEmployees []model.User
+					if errUsers := config.DB.Where("id_role IN (?)", []int{1, 2}).Find(&adminsAndEmployees).Error; errUsers == nil {
+						for _, u := range adminsAndEmployees {
+							errNotif := c.notifRepo.CreateNotificationForUser(
+								u.IDUser,
+								fmt.Sprintf("Pesan Baru dari %s 💬", senderName),
+								shortMsg,
+							)
+							if errNotif == nil {
+								var latestNotif model.Notifikasi
+								if errQuery := config.DB.Where("id_user = ?", u.IDUser).Order("id_notifikasi desc").First(&latestNotif).Error; errQuery == nil {
+									GlobalNotifHub.BroadcastNotification(u.IDUser, latestNotif)
+								}
+							}
+						}
+					}
+				}
+			}
+		}(msg)
 
 		// Kirim balik pesan ini secara broadcast ke SEMUA orang yang ada di room chat yang sama
 		pool.Mu.Lock()

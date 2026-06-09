@@ -48,7 +48,7 @@ func main() {
 	metodePembayaranController := controller.NewMetodePembayaranController(config.DB)
 	alamatController := controller.NewAlamatController(alamatRepo, pelangganRepo)
 	orderController := controller.NewOrderController(orderRepo, pelangganRepo, karyawanRepo, notifikasiRepo)
-	chatController := controller.NewChatController(chatRepo)
+	chatController := controller.NewChatController(chatRepo, notifikasiRepo)
 	penilaianController := controller.NewPenilaianController(config.DB)
 	notifikasiController := controller.NewNotifikasiController(notifikasiRepo)
 
@@ -108,6 +108,19 @@ func main() {
 	ordersRoutes.Use(middleware.JWTAuthMiddleware())
 	{
 		ordersRoutes.POST("/scan-qr", orderController.ScanQR)
+	}
+
+	// Rute Notifikasi untuk semua user terotentikasi (Pelanggan, Karyawan, Admin)
+	notifikasiRoutes := api.Group("/notifikasi")
+	{
+		// WebSocket notifikasi tanpa middleware
+		notifikasiRoutes.GET("/ws", notifikasiController.HandleNotifWS)
+
+		// Rute terproteksi JWT
+		notifikasiRoutes.Use(middleware.JWTAuthMiddleware())
+		notifikasiRoutes.GET("", notifikasiController.GetNotifications)
+		notifikasiRoutes.PUT("/:id/read", notifikasiController.MarkAsRead)
+		notifikasiRoutes.PUT("/read-all", notifikasiController.MarkAllAsRead)
 	}
 
 	// Rute Layanan Pelanggan (General Authenticated Users)

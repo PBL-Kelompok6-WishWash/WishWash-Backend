@@ -16,16 +16,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var order model.Order
-	err = db.Preload("RiwayatStatusDetail.ReferensiStatus").First(&order, 33).Error
+	var notifs []model.Notifikasi
+	err = db.Order("id_notifikasi desc").Limit(5).Find(&notifs).Error
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Order ID: %d | Kode: %s | Qty: %.2f\n", order.IDOrder, order.KodeOrder, order.Kuantitas)
-	fmt.Println("History entries:")
-	for i, rs := range order.RiwayatStatusDetail {
-		fmt.Printf("  [%d] ID: %d | RefStatusID: %d | Status: %s | Waktu: %s\n", 
-			i, rs.IDRiwayat, rs.ReferensiStatusID, rs.ReferensiStatus.NamaStatus, rs.WaktuUpdate)
+	fmt.Println("=== LAST 5 NOTIFICATIONS ===")
+	for _, n := range notifs {
+		fmt.Printf("ID: %d | UserID: %d | Title: %s | Message: %s | Created: %s\n", 
+			n.IDNotifikasi, n.UserID, n.Judul, n.Pesan, n.CreatedAt)
 	}
 }

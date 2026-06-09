@@ -12,6 +12,7 @@ type NotifikasiRepository interface {
 	MarkAsRead(id uint, userID uint) error
 	MarkAllAsRead(userID uint) error
 	CreateNotificationForAdmins(title string, message string) error
+	CreateNotificationForUser(userID uint, title string, message string) error
 }
 
 type notifikasiRepository struct {
@@ -58,4 +59,14 @@ func (r *notifikasiRepository) CreateNotificationForAdmins(title string, message
 		}
 	}
 	return nil
+}
+
+func (r *notifikasiRepository) CreateNotificationForUser(userID uint, title string, message string) error {
+	notif := model.Notifikasi{
+		UserID: userID,
+		Judul:  title,
+		Pesan:  message,
+		IsRead: false,
+	}
+	return r.db.Create(&notif).Error
 }
