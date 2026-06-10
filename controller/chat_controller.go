@@ -218,24 +218,13 @@ func (c *ChatController) HandleWS(ctx *gin.Context) {
 
 		roomIDUint, _ := strconv.ParseUint(roomIDStr, 10, 32)
 
-		// Cek apakah penerima sedang online di room pool yang sama
-		hasRecipient := false
-		pool.Mu.Lock()
-		for _, clientUserID := range pool.Clients {
-			if clientUserID != uint(userID) {
-				hasRecipient = true
-				break
-			}
-		}
-		pool.Mu.Unlock()
-
 		// Bungkus ke dalam model GORM untuk disimpan ke database
 		msg := model.PesanChat{
 			RoomChatID: uint(roomIDUint),
 			UserID:     uint(userID),
 			TeksPesan:  incoming.TeksPesan,
 			WaktuKirim: time.Now(),
-			StatusBaca: hasRecipient,
+			StatusBaca: false,
 		}
 
 		// Jika ada gambar terkirim (base64)
