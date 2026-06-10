@@ -104,7 +104,7 @@ func (c *PenilaianController) RateOrder(ctx *gin.Context) {
 					Pesan:  message,
 					IsRead: false,
 				}
-				if err := c.db.Create(&notif).Error == nil {
+				if err := c.db.Create(&notif).Error; err == nil {
 					GlobalNotifHub.BroadcastNotification(s.IDUser, notif)
 				}
 			}
