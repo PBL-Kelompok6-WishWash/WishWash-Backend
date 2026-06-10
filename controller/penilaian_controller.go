@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,7 +29,7 @@ func (c *PenilaianController) RateOrder(ctx *gin.Context) {
 
 	// Verify order exists
 	var order model.Order
-	if err := c.db.First(&order, orderID).Error; err != nil {
+	if err := c.db.Preload("Pelanggan").First(&order, orderID).Error; err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Order tidak ditemukan"})
 		return
 	}
@@ -81,6 +82,34 @@ func (c *PenilaianController) RateOrder(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan ulasan"})
 		return
 	}
+
+	// Trigger notification to staff
+	go func() {
+		var staff []model.User
+		if err := c.db.Where("id_role IN (1, 2)").Find(&staff).Error; err == nil {
+			namaPelanggan := "Pelanggan"
+			if order.Pelanggan.NamaLengkap != "" {
+				namaPelanggan = order.Pelanggan.NamaLengkap
+			}
+			title := "Ulasan Baru ⭐️"
+			message := fmt.Sprintf("%s memberikan rating %d bintang untuk pesanan %s.", namaPelanggan, penilaian.Bintang, order.KodeOrder)
+			if penilaian.Ulasan != "" {
+				message = fmt.Sprintf("%s memberikan rating %d bintang: \"%s\" untuk pesanan %s.", namaPelanggan, penilaian.Bintang, penilaian.Ulasan, order.KodeOrder)
+			}
+			
+			for _, s := range staff {
+				notif := model.Notifikasi{
+					UserID: s.IDUser,
+					Judul:  title,
+					Pesan:  message,
+					IsRead: false,
+				}
+				if err := c.db.Create(&notif).Error == nil {
+					GlobalNotifHub.BroadcastNotification(s.IDUser, notif)
+				}
+			}
+		}
+	}()
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"success": true,
