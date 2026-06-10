@@ -221,7 +221,7 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 	} else {
 		msg = fmt.Sprintf("Pesanan baru dengan kode %s atas nama %s telah masuk.", order.KodeOrder, namaPelanggan)
 	}
-	go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Baru Masuk 🧺", msg)	// Trigger notification for customer if created by employee/admin
+	ctrl.triggerStaffNotification("Pesanan Baru Masuk 🧺", msg) // Trigger notification for customer if created by employee/admin
 	if roleID == 1 || roleID == 2 {
 		go func(nameKaryawan string) {
 			cust, errCust := ctrl.pelangganRepo.FindByID(pelangganID)
@@ -304,6 +304,12 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		if errKaryawan == nil {
 			karyawanID = &karyawan.IDKaryawan
 		}
+	}
+
+	roleData, existsRole := c.Get("id_role")
+	roleID := 3 // default to customer
+	if existsRole {
+		roleID = int(roleData.(float64))
 	}
 
 	// 2. Ambil data order existing
@@ -454,7 +460,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				if order.Pelanggan.NamaLengkap != "" {
 					namaPelanggan = order.Pelanggan.NamaLengkap
 				}
-				go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pesanan Selesai 🚀", fmt.Sprintf("Pesanan %s atas nama %s telah selesai diproses.", order.KodeOrder, namaPelanggan))
+				ctrl.triggerStaffNotification("Pesanan Selesai 🚀", fmt.Sprintf("Pesanan %s atas nama %s telah selesai diproses.", order.KodeOrder, namaPelanggan))
 			}
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Status '" + targetStatus + "' tidak ditemukan untuk layanan ini"})
@@ -576,7 +582,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 			if order.Pelanggan.NamaLengkap != "" {
 				namaPelanggan = order.Pelanggan.NamaLengkap
 			}
-			go ctrl.notifikasiRepo.CreateNotificationForAdmins("Pembayaran Berhasil 💳", fmt.Sprintf("Pembayaran untuk pesanan %s atas nama %s telah berhasil diterima.", order.KodeOrder, namaPelanggan))
+			ctrl.triggerStaffNotification("Pembayaran Berhasil 💳", fmt.Sprintf("Pembayaran untuk pesanan %s atas nama %s telah berhasil diterima.", order.KodeOrder, namaPelanggan))
 		}
 	}
 
@@ -592,6 +598,32 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		ctrl.triggerCustomerOrderNotification(order.IDOrder, "status_update", nil)
 	} else if input.IsCourierOnWay != nil {
 		ctrl.triggerCustomerOrderNotification(order.IDOrder, "courier_status", &previousIsCourierOnWay)
+	}
+
+	// Trigger staff notifications (Admins and Employees) if updated by customer
+	if roleID == 3 {
+		namaPelanggan := order.Pelanggan.NamaLengkap
+		if namaPelanggan == "" {
+			namaPelanggan = "Pelanggan"
+		}
+		if input.MetodeBayar != "" && input.MetodeBayar != "BELUM DIBAYAR" {
+			ctrl.triggerStaffNotification(
+				"Metode Bayar Dipilih 💵",
+				fmt.Sprintf("Pelanggan %s telah memilih metode pembayaran %s untuk pesanan %s.", namaPelanggan, input.MetodeBayar, order.KodeOrder),
+			)
+		}
+		if input.TipeLogistik != "" {
+			logistikLabel := input.TipeLogistik
+			if input.TipeLogistik == "Drop-off" {
+				logistikLabel = "Ambil Sendiri di Toko"
+			} else {
+				logistikLabel = "Kirim Lewat Kurir"
+			}
+			ctrl.triggerStaffNotification(
+				"Metode Penyerahan Dipilih 🚚",
+				fmt.Sprintf("Pelanggan %s telah memilih metode penyerahan '%s' untuk pesanan %s.", namaPelanggan, logistikLabel, order.KodeOrder),
+			)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -995,5 +1027,29 @@ func (ctrl *orderController) getOrderStatusName(order *model.Order) string {
 		}
 	}
 	return currentStatus
+}
+
+func (ctrl *orderController) triggerStaffNotification(title string, message string) {
+	go func() {
+		var staff []model.User
+		if err := config.DB.Where("id_role IN (1, 2)").Find(&staff).Error; err != nil {
+			log.Printf("⚠️ Gagal mencari staff untuk notifikasi: %v", err)
+			return
+		}
+
+		for _, s := range staff {
+			notif := model.Notifikasi{
+				UserID: s.IDUser,
+				Judul:  title,
+				Pesan:  message,
+				IsRead: false,
+			}
+			if err := config.DB.Create(&notif).Error; err != nil {
+				log.Printf("⚠️ Gagal membuat notifikasi staff UserID %d: %v", s.IDUser, err)
+			} else {
+				GlobalNotifHub.BroadcastNotification(s.IDUser, notif)
+			}
+		}
+	}()
 }
 
