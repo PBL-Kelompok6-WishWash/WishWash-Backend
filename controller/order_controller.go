@@ -334,6 +334,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		AlamatPengambilanID *uint    `json:"id_alamat_pengambilan"`
 		CatatanOrder        string   `json:"catatan_order"`
 		IsCourierOnWay      *bool    `json:"is_courier_on_way"`
+		IsCourierArrived    *bool    `json:"is_courier_arrived"`
 		CourierLatitude     string   `json:"courier_latitude"`
 		CourierLongitude    string   `json:"courier_longitude"`
 	}
@@ -391,6 +392,9 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 	}
 
 	if targetStatus != "" {
+		order.IsCourierOnWay = false
+		order.IsCourierArrived = false
+
 		var refStatus model.ReferensiStatusLayanan
 		var errRef error
 		
@@ -525,6 +529,10 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				}
 			}
 		}
+	}
+
+	if input.IsCourierArrived != nil {
+		order.IsCourierArrived = *input.IsCourierArrived
 	}
 
 	// Jika Karyawan meng-update order, set KaryawanID di order
@@ -972,6 +980,12 @@ func (ctrl *orderController) triggerCustomerOrderNotification(orderID uint, noti
 			case "pesanan diterima":
 				title = "Pesanan Dikonfirmasi 🧺"
 				message = fmt.Sprintf("Pesanan Anda dengan kode %s telah dikonfirmasi oleh petugas WishWash.", kodeOrder)
+			case "penjemputan":
+				title = "Pesanan Dikonfirmasi & Bersiap Dijemput 🧺"
+				message = fmt.Sprintf("Pesanan Anda dengan kode %s telah dikonfirmasi oleh petugas WishWash. Kurir kami bersiap untuk menjemput pakaian Anda.", kodeOrder)
+			case "proses timbang":
+				title = "Pesanan Dikonfirmasi & Proses Timbang ⚖️"
+				message = fmt.Sprintf("Pesanan Anda dengan kode %s telah dikonfirmasi oleh petugas WishWash dan saat ini masuk ke antrean timbang.", kodeOrder)
 			case "batal", "dibatalkan":
 				title = "Pesanan Dibatalkan Toko ❌"
 				message = fmt.Sprintf("Pesanan %s Anda telah dibatalkan oleh pihak WishWash Laundry. Hubungi kami untuk informasi lebih lanjut.", kodeOrder)

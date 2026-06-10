@@ -22,6 +22,7 @@ type Order struct {
 	TotalBayar       float64   `gorm:"type:numeric;column:total_bayar" json:"total_bayar"`
 	CatatanOrder     string    `gorm:"type:text;column:catatan_order" json:"catatan_order"`
 	IsCourierOnWay   bool      `gorm:"column:is_courier_on_way;default:false" json:"is_courier_on_way"`
+	IsCourierArrived bool      `gorm:"column:is_courier_arrived;default:false" json:"is_courier_arrived"`
 	CourierLatitude  string    `gorm:"type:varchar(100);column:courier_latitude" json:"courier_latitude"`
 	CourierLongitude string    `gorm:"type:varchar(100);column:courier_longitude" json:"courier_longitude"`
 
