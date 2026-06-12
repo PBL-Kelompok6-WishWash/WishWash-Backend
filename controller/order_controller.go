@@ -115,6 +115,8 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		KeteranganLokasi    string  `json:"keterangan_lokasi"`
 		JadwalPickup        string  `json:"jadwal_pickup"` // Format: YYYY-MM-DD HH:MM
 		TipeLogistik        string  `json:"tipe_logistik" binding:"required"`
+		BiayaPenjemputan    float64 `json:"biaya_penjemputan"`
+		BiayaPengantaran    float64 `json:"biaya_pengantaran"`
 		HargaSaatIni        float64 `json:"harga_saat_ini" binding:"required"`
 		Kuantitas           float64 `json:"kuantitas"`
 		TotalBayar          float64 `json:"total_bayar"`
@@ -190,6 +192,8 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		KeteranganLokasi:    input.KeteranganLokasi,
 		JadwalPickup:        pickupTime,
 		TipeLogistik:        input.TipeLogistik,
+		BiayaPenjemputan:    input.BiayaPenjemputan,
+		BiayaPengantaran:    input.BiayaPengantaran,
 		HargaSaatIni:        input.HargaSaatIni,
 		Kuantitas:           input.Kuantitas,
 		TotalBayar:          input.TotalBayar,
@@ -330,6 +334,8 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		StatusPembayaran    string   `json:"status_pembayaran"` // Contoh: "Paid", "Lunas", "Unpaid"
 		MetodeBayar         string   `json:"metode_bayar"`      // Contoh: "Cash", "QRIS"
 		TipeLogistik        string   `json:"tipe_logistik"`
+		BiayaPenjemputan    *float64 `json:"biaya_penjemputan"`
+		BiayaPengantaran    *float64 `json:"biaya_pengantaran"`
 		AlamatPenyerahanID  *uint    `json:"id_alamat_penyerahan"`
 		AlamatPengambilanID *uint    `json:"id_alamat_pengambilan"`
 		CatatanOrder        string   `json:"catatan_order"`
@@ -483,6 +489,13 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		}
 	} else if input.TotalBayar != nil {
 		order.TotalBayar = *input.TotalBayar
+	}
+
+	if input.BiayaPenjemputan != nil {
+		order.BiayaPenjemputan = *input.BiayaPenjemputan
+	}
+	if input.BiayaPengantaran != nil {
+		order.BiayaPengantaran = *input.BiayaPengantaran
 	}
 
 	if input.TipeLogistik != "" {

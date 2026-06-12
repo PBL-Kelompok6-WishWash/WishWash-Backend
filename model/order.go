@@ -16,10 +16,12 @@ type Order struct {
 	KeteranganLokasi string     `gorm:"type:text;column:keterangan_lokasi" json:"keterangan_lokasi"`
 	TglPesanan       time.Time  `gorm:"type:timestamp;column:tgl_pesanan;default:CURRENT_TIMESTAMP" json:"tgl_pesanan"`
 	JadwalPickup     *time.Time `gorm:"type:timestamp;column:jadwal_pickup" json:"jadwal_pickup"`
-	TipeLogistik     string    `gorm:"type:varchar(50);column:tipe_logistik" json:"tipe_logistik"`
-	HargaSaatIni     float64   `gorm:"type:numeric;column:harga_saat_ini" json:"harga_saat_ini"`
-	Kuantitas        float64   `gorm:"type:numeric;column:kuantitas" json:"kuantitas"`
-	TotalBayar       float64   `gorm:"type:numeric;column:total_bayar" json:"total_bayar"`
+	TipeLogistik        string     `gorm:"type:varchar(50);column:tipe_logistik" json:"tipe_logistik"`
+	BiayaPenjemputan    float64    `gorm:"type:numeric;column:biaya_penjemputan;default:0" json:"biaya_penjemputan"`
+	BiayaPengantaran    float64    `gorm:"type:numeric;column:biaya_pengantaran;default:0" json:"biaya_pengantaran"`
+	HargaSaatIni        float64    `gorm:"type:numeric;column:harga_saat_ini" json:"harga_saat_ini"`
+	Kuantitas           float64    `gorm:"type:numeric;column:kuantitas" json:"kuantitas"`
+	TotalBayar          float64    `gorm:"type:numeric;column:total_bayar" json:"total_bayar"`
 	CatatanOrder     string    `gorm:"type:text;column:catatan_order" json:"catatan_order"`
 	IsCourierOnWay   bool      `gorm:"column:is_courier_on_way;default:false" json:"is_courier_on_way"`
 	IsCourierArrived bool      `gorm:"column:is_courier_arrived;default:false" json:"is_courier_arrived"`
