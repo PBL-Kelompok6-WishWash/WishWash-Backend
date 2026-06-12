@@ -1,0 +1,16 @@
+# ─── Go Build Artifacts ─────────────────────────────────────
+*.exe
+*.out
+tmp/
+vendor/
+
+# ─── Environment ────────────────────────────────────────────
+.env
+.env.local
+
+# ─── Uploads (user-generated content) ───────────────────────
+uploads/
+
+# ─── OS ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
