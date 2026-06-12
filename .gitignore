@@ -9,7 +9,9 @@ vendor/
 .env.local
 
 # ─── Uploads (user-generated content) ───────────────────────
-uploads/
+# Ignore semua isi uploads, tapi tetap track struktur foldernya lewat .gitkeep
+uploads/**
+!uploads/**/.gitkeep
 
 # ─── OS ─────────────────────────────────────────────────────
 .DS_Store
