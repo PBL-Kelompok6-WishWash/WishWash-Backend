@@ -13,6 +13,8 @@ type NotifikasiRepository interface {
 	MarkAllAsRead(userID uint) error
 	CreateNotificationForAdmins(title string, message string) error
 	CreateNotificationForUser(userID uint, title string, message string) error
+	Delete(id uint, userID uint) error
+	DeleteAll(userID uint) error
 }
 
 type notifikasiRepository struct {
@@ -69,4 +71,12 @@ func (r *notifikasiRepository) CreateNotificationForUser(userID uint, title stri
 		IsRead: false,
 	}
 	return r.db.Create(&notif).Error
+}
+
+func (r *notifikasiRepository) Delete(id uint, userID uint) error {
+	return r.db.Where("id_notifikasi = ? AND id_user = ?", id, userID).Delete(&model.Notifikasi{}).Error
+}
+
+func (r *notifikasiRepository) DeleteAll(userID uint) error {
+	return r.db.Where("id_user = ?", userID).Delete(&model.Notifikasi{}).Error
 }

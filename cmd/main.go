@@ -121,6 +121,8 @@ func main() {
 		notifikasiRoutes.GET("", notifikasiController.GetNotifications)
 		notifikasiRoutes.PUT("/:id/read", notifikasiController.MarkAsRead)
 		notifikasiRoutes.PUT("/read-all", notifikasiController.MarkAllAsRead)
+		notifikasiRoutes.DELETE("/:id", notifikasiController.DeleteNotification)
+		notifikasiRoutes.DELETE("/delete-all", notifikasiController.DeleteAllNotifications)
 	}
 
 	// Rute Layanan Pelanggan (General Authenticated Users)
@@ -223,6 +225,8 @@ func main() {
 		adminRoutes.GET("/notifikasi", notifikasiController.GetNotifications)
 		adminRoutes.PUT("/notifikasi/:id/read", notifikasiController.MarkAsRead)
 		adminRoutes.PUT("/notifikasi/read-all", notifikasiController.MarkAllAsRead)
+		adminRoutes.DELETE("/notifikasi/:id", notifikasiController.DeleteNotification)
+		adminRoutes.DELETE("/notifikasi/delete-all", notifikasiController.DeleteAllNotifications)
 	}
 
 	// 6. Buka restoran di port 8080

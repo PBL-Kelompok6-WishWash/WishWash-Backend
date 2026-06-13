@@ -177,12 +177,47 @@ func (c *ChatController) HandleWS(ctx *gin.Context) {
 	// Daftarkan koneksi baru ke dalam pool ruangan
 	pool.Mu.Lock()
 	pool.Clients[conn] = uint(userID)
+
+	// Cek apakah ada user lain di pool yang online
+	otherOnline := false
+	for _, uid := range pool.Clients {
+		if uid != uint(userID) {
+			otherOnline = true
+			break
+		}
+	}
+
+	// Kirim status awal ke user yang baru terhubung
+	_ = conn.WriteJSON(gin.H{
+		"type":   "initial_status",
+		"online": otherOnline,
+	})
+
+	// Broadcast status online ke user lain di room yang sama
+	for client := range pool.Clients {
+		if pool.Clients[client] != uint(userID) {
+			_ = client.WriteJSON(gin.H{
+				"type":      "status",
+				"id_user":   userID,
+				"online":    true,
+			})
+		}
+	}
 	pool.Mu.Unlock()
 
 	// Bersihkan koneksi jika user menutup aplikasi atau keluar dari halaman chat
 	defer func() {
 		pool.Mu.Lock()
 		delete(pool.Clients, conn)
+
+		// Broadcast status offline ke user lain di room yang sama
+		for client := range pool.Clients {
+			_ = client.WriteJSON(gin.H{
+				"type":      "status",
+				"id_user":   userID,
+				"online":    false,
+			})
+		}
 		pool.Mu.Unlock()
 	}()
 

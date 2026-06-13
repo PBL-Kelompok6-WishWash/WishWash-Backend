@@ -184,3 +184,50 @@ func (ctrl *NotifikasiController) MarkAllAsRead(c *gin.Context) {
 		"message": "Semua notifikasi berhasil ditandai telah dibaca",
 	})
 }
+
+func (ctrl *NotifikasiController) DeleteNotification(c *gin.Context) {
+	userIDFloat, exists := c.Get("id_user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Pengguna tidak terautentikasi"})
+		return
+	}
+	userID := uint(userIDFloat.(float64))
+
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID notifikasi tidak valid"})
+		return
+	}
+
+	err = ctrl.notifikasiRepo.Delete(uint(id), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus notifikasi"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Notifikasi berhasil dihapus",
+	})
+}
+
+func (ctrl *NotifikasiController) DeleteAllNotifications(c *gin.Context) {
+	userIDFloat, exists := c.Get("id_user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Pengguna tidak terautentikasi"})
+		return
+	}
+	userID := uint(userIDFloat.(float64))
+
+	err := ctrl.notifikasiRepo.DeleteAll(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus semua notifikasi"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Semua notifikasi berhasil dihapus",
+	})
+}
