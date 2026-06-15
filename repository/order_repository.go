@@ -191,5 +191,5 @@ func (r *orderRepository) FindAll() ([]model.Order, error) {
 }
 
 func (r *orderRepository) Update(order *model.Order) error {
-	return r.db.Omit("AlamatPenyerahan", "AlamatPengambilan", "Pelanggan", "PaketLayanan", "Parfum", "Layanan", "Karyawan").Save(order).Error
+	return r.db.Omit("AlamatPenyerahan", "AlamatPengambilan", "Pelanggan", "PaketLayanan", "Parfum", "Layanan", "Karyawan", "PromoOrder").Save(order).Error
 }

@@ -60,6 +60,60 @@ func (ctrl *orderController) getPelangganIDFromContext(c *gin.Context) (uint, er
 	return pelanggan.IDPelanggan, nil
 }
 
+func (ctrl *orderController) calculateOrderTotal(order *model.Order) float64 {
+	if order.Kuantitas <= 0 {
+		return 0
+	}
+	subtotal := order.Kuantitas * order.HargaSaatIni
+
+	var biayaTambahan float64
+	if order.PaketLayanan != nil {
+		biayaTambahan = order.PaketLayanan.BiayaTambahan
+	} else if order.PaketLayananID != nil && *order.PaketLayananID > 0 {
+		var pkg model.PaketLayanan
+		if err := config.DB.First(&pkg, *order.PaketLayananID).Error; err == nil {
+			biayaTambahan = pkg.BiayaTambahan
+		}
+	}
+
+	var promoDiscount float64
+	if len(order.PromoOrder) > 0 {
+		promo := order.PromoOrder[0].Promo
+		if promo.IDPromo > 0 {
+			if strings.Contains(strings.ToLower(promo.TipePromo), "persen") {
+				promoDiscount = subtotal * (promo.NominalPotongan / 100)
+				if promo.MaksimalPotongan > 0 && promoDiscount > promo.MaksimalPotongan {
+					promoDiscount = promo.MaksimalPotongan
+				}
+			} else {
+				promoDiscount = promo.NominalPotongan
+			}
+		}
+	} else {
+		var promoOrders []model.PromoOrder
+		config.DB.Preload("Promo").Where("id_order = ?", order.IDOrder).Find(&promoOrders)
+		if len(promoOrders) > 0 {
+			promo := promoOrders[0].Promo
+			if promo.IDPromo > 0 {
+				if strings.Contains(strings.ToLower(promo.TipePromo), "persen") {
+					promoDiscount = subtotal * (promo.NominalPotongan / 100)
+					if promo.MaksimalPotongan > 0 && promoDiscount > promo.MaksimalPotongan {
+						promoDiscount = promo.MaksimalPotongan
+					}
+				} else {
+					promoDiscount = promo.NominalPotongan
+				}
+			}
+		}
+	}
+
+	total := subtotal + biayaTambahan + order.BiayaPenjemputan + order.BiayaPengantaran - promoDiscount
+	if total < 0 {
+		return 0
+	}
+	return total
+}
+
 func (ctrl *orderController) GetOrdersPelanggan(c *gin.Context) {
 	roleData, exists := c.Get("id_role")
 	roleID := 3 // default to customer
@@ -86,6 +140,14 @@ func (ctrl *orderController) GetOrdersPelanggan(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data pesanan"})
 		return
+	}
+
+	for i := range orders {
+		correctTotal := ctrl.calculateOrderTotal(&orders[i])
+		if orders[i].TotalBayar != correctTotal {
+			orders[i].TotalBayar = correctTotal
+			config.DB.Model(&orders[i]).Update("total_bayar", correctTotal)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -121,6 +183,7 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		Kuantitas           float64 `json:"kuantitas"`
 		TotalBayar          float64 `json:"total_bayar"`
 		CatatanOrder        string  `json:"catatan_order"`
+		IDPromo             *uint   `json:"id_promo"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -207,6 +270,19 @@ func (ctrl *orderController) CreateOrder(c *gin.Context) {
 		return
 	}
 
+	if input.IDPromo != nil && *input.IDPromo > 0 {
+		promoOrder := model.PromoOrder{
+			OrderID: order.IDOrder,
+			PromoID: *input.IDPromo,
+		}
+		if err := config.DB.Create(&promoOrder).Error; err != nil {
+			log.Printf("[WARNING] Gagal menyimpan relasi promo: %v", err)
+		} else {
+			// Reload relationships to get the newly created PromoOrder preloaded
+			config.DB.Preload("PromoOrder.Promo").First(&order, order.IDOrder)
+		}
+	}
+
 	// Trigger notification for admins
 	namaPelanggan := "Pelanggan"
 	if order.Pelanggan.NamaLengkap != "" {
@@ -264,6 +340,12 @@ func (ctrl *orderController) GetOrderByID(c *gin.Context) {
 		return
 	}
 
+	correctTotal := ctrl.calculateOrderTotal(order)
+	if order.TotalBayar != correctTotal {
+		order.TotalBayar = correctTotal
+		config.DB.Model(order).Update("total_bayar", correctTotal)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Data pesanan berhasil diambil",
@@ -282,6 +364,12 @@ func (ctrl *orderController) GetOrderByKode(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Pesanan tidak ditemukan"})
 		return
+	}
+
+	correctTotal := ctrl.calculateOrderTotal(order)
+	if order.TotalBayar != correctTotal {
+		order.TotalBayar = correctTotal
+		config.DB.Model(order).Update("total_bayar", correctTotal)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -343,6 +431,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		IsCourierArrived    *bool    `json:"is_courier_arrived"`
 		CourierLatitude     string   `json:"courier_latitude"`
 		CourierLongitude    string   `json:"courier_longitude"`
+		IDPromo             *uint    `json:"id_promo"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -553,6 +642,20 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		order.KaryawanID = karyawanID
 	}
 
+	if input.IDPromo != nil {
+		config.DB.Where("id_order = ?", order.IDOrder).Delete(&model.PromoOrder{})
+		if *input.IDPromo > 0 {
+			promoOrder := model.PromoOrder{
+				OrderID: order.IDOrder,
+				PromoID: *input.IDPromo,
+			}
+			if err := config.DB.Create(&promoOrder).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan relasi promo: " + err.Error()})
+				return
+			}
+		}
+	}
+
 	// Simpan perubahan order ke DB
 	if err := ctrl.orderRepo.Update(order); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate order: " + err.Error()})
@@ -609,6 +712,13 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 
 	// Fetch kembali data lengkap untuk dikembalikan ke client
 	updatedOrder, _ := ctrl.orderRepo.FindByID(order.IDOrder)
+	if updatedOrder != nil {
+		correctTotal := ctrl.calculateOrderTotal(updatedOrder)
+		if updatedOrder.TotalBayar != correctTotal {
+			updatedOrder.TotalBayar = correctTotal
+			config.DB.Model(updatedOrder).Update("total_bayar", correctTotal)
+		}
+	}
 
 	// Trigger customer notifications
 	if input.StatusPembayaran == "Paid" || input.StatusPembayaran == "Lunas" {
@@ -972,7 +1082,7 @@ func (ctrl *orderController) triggerCustomerOrderNotification(orderID uint, noti
 						kodeOrder, layananName, packageName, beratText)
 				} else {
 					title = "Kurir Menuju ke Lokasimu 🏍️"
-					message = "Kurir sedang dalam perjalanan ke lokasi Anda untuk mengambil cucian Anda."
+					message = fmt.Sprintf("Kurir sedang dalam perjalanan ke lokasi Anda untuk mengambil cucian Anda pada pesanan %s.", kodeOrder)
 				}
 			} else {
 				if previousIsCourierOnWay != nil && *previousIsCourierOnWay {
@@ -983,7 +1093,7 @@ func (ctrl *orderController) triggerCustomerOrderNotification(orderID uint, noti
 							kodeOrder, layananName, packageName, beratText)
 					} else {
 						title = "Kurir Sudah Sampai! 📍"
-						message = "Kurir telah tiba di lokasi penjemputan Anda. Silakan siapkan pakaian yang akan dilaundry."
+						message = fmt.Sprintf("Kurir telah tiba di lokasi penjemputan Anda untuk pesanan %s. Silakan siapkan pakaian yang akan dilaundry.", kodeOrder)
 					}
 				}
 			}
