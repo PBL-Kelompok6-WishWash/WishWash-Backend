@@ -12,6 +12,7 @@ type Order struct {
 	ParfumID            uint      `gorm:"not null;column:id_parfum" json:"id_parfum"`
 	LayananID           uint      `gorm:"not null;column:id_layanan" json:"id_layanan"`
 	KaryawanID          *uint     `gorm:"column:id_karyawan" json:"id_karyawan"` // Pake pointer (*) karena kurir mungkin belum di-assign saat order masuk
+	Status              string     `gorm:"type:varchar(50);column:status;default:'Pesanan Diterima'" json:"status"`
 
 	KeteranganLokasi string     `gorm:"type:text;column:keterangan_lokasi" json:"keterangan_lokasi"`
 	TglPesanan       time.Time  `gorm:"type:timestamp;column:tgl_pesanan;default:CURRENT_TIMESTAMP" json:"tgl_pesanan"`
