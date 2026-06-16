@@ -706,7 +706,13 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 			if order.Pelanggan.NamaLengkap != "" {
 				namaPelanggan = order.Pelanggan.NamaLengkap
 			}
-			ctrl.triggerStaffNotification("Pembayaran Berhasil 💳", fmt.Sprintf("Pembayaran untuk pesanan %s atas nama %s sebesar %s telah berhasil diterima.", order.KodeOrder, namaPelanggan, formatRupiah(order.TotalBayar)))
+			msg := fmt.Sprintf("Pembayaran untuk pesanan %s atas nama %s sebesar %s telah berhasil diterima.", order.KodeOrder, namaPelanggan, formatRupiah(order.TotalBayar))
+			if order.TipeLogistik == "Courier Delivery" {
+				msg += " Pesanan siap diantar."
+			} else if order.TipeLogistik == "Drop-off" {
+				msg += " Menunggu pelanggan mengambil cucian."
+			}
+			ctrl.triggerStaffNotification("Pembayaran Berhasil 💳", msg)
 		}
 	}
 
@@ -737,7 +743,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		if namaPelanggan == "" {
 			namaPelanggan = "Pelanggan"
 		}
-		if input.MetodeBayar != "" && input.MetodeBayar != "BELUM DIBAYAR" {
+		if input.MetodeBayar != "" && input.MetodeBayar != "BELUM DIBAYAR" && strings.ToUpper(input.MetodeBayar) != "QRIS" {
 			ctrl.triggerKaryawanNotification(
 				"Metode Bayar Dipilih 💵",
 				fmt.Sprintf("Pelanggan %s telah memilih metode pembayaran %s untuk pesanan %s.", namaPelanggan, input.MetodeBayar, order.KodeOrder),
