@@ -706,7 +706,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 			if order.Pelanggan.NamaLengkap != "" {
 				namaPelanggan = order.Pelanggan.NamaLengkap
 			}
-			ctrl.triggerStaffNotification("Pembayaran Berhasil 💳", fmt.Sprintf("Pembayaran untuk pesanan %s atas nama %s telah berhasil diterima.", order.KodeOrder, namaPelanggan))
+			ctrl.triggerStaffNotification("Pembayaran Berhasil 💳", fmt.Sprintf("Pembayaran untuk pesanan %s atas nama %s sebesar %s telah berhasil diterima.", order.KodeOrder, namaPelanggan, formatRupiah(order.TotalBayar)))
 		}
 	}
 
@@ -731,14 +731,14 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		ctrl.triggerCustomerOrderNotification(order.IDOrder, "courier_status", &previousIsCourierOnWay)
 	}
 
-	// Trigger staff notifications (Admins and Employees) if updated by customer
+	// Trigger employee notifications if updated by customer
 	if roleID == 3 {
 		namaPelanggan := order.Pelanggan.NamaLengkap
 		if namaPelanggan == "" {
 			namaPelanggan = "Pelanggan"
 		}
 		if input.MetodeBayar != "" && input.MetodeBayar != "BELUM DIBAYAR" {
-			ctrl.triggerStaffNotification(
+			ctrl.triggerKaryawanNotification(
 				"Metode Bayar Dipilih 💵",
 				fmt.Sprintf("Pelanggan %s telah memilih metode pembayaran %s untuk pesanan %s.", namaPelanggan, input.MetodeBayar, order.KodeOrder),
 			)
@@ -750,7 +750,7 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 			} else {
 				logistikLabel = "Kirim Lewat Kurir"
 			}
-			ctrl.triggerStaffNotification(
+			ctrl.triggerKaryawanNotification(
 				"Metode Penyerahan Dipilih 🚚",
 				fmt.Sprintf("Pelanggan %s telah memilih metode penyerahan '%s' untuk pesanan %s.", namaPelanggan, logistikLabel, order.KodeOrder),
 			)
@@ -1183,6 +1183,30 @@ func (ctrl *orderController) triggerStaffNotification(title string, message stri
 			}
 			if err := config.DB.Create(&notif).Error; err != nil {
 				log.Printf("⚠️ Gagal membuat notifikasi staff UserID %d: %v", s.IDUser, err)
+			} else {
+				GlobalNotifHub.BroadcastNotification(s.IDUser, notif)
+			}
+		}
+	}()
+}
+
+func (ctrl *orderController) triggerKaryawanNotification(title string, message string) {
+	go func() {
+		var staff []model.User
+		if err := config.DB.Where("id_role = 2").Find(&staff).Error; err != nil {
+			log.Printf("⚠️ Gagal mencari karyawan untuk notifikasi: %v", err)
+			return
+		}
+
+		for _, s := range staff {
+			notif := model.Notifikasi{
+				UserID: s.IDUser,
+				Judul:  title,
+				Pesan:  message,
+				IsRead: false,
+			}
+			if err := config.DB.Create(&notif).Error; err != nil {
+				log.Printf("⚠️ Gagal membuat notifikasi karyawan UserID %d: %v", s.IDUser, err)
 			} else {
 				GlobalNotifHub.BroadcastNotification(s.IDUser, notif)
 			}
