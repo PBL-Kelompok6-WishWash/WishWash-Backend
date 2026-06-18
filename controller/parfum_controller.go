@@ -24,9 +24,21 @@ func (c *ParfumController) GetAll(ctx *gin.Context) {
 		return
 	}
 
+	var responseData []gin.H
+	for _, p := range parfums {
+		isUsed, _ := c.parfumRepo.CheckIsUsed(int(p.IDParfum))
+		responseData = append(responseData, gin.H{
+			"id_parfum":     p.IDParfum,
+			"nama_parfum":   p.NamaParfum,
+			"keterangan":    p.Keterangan,
+			"status_parfum": p.StatusParfum,
+			"is_used":       isUsed,
+		})
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "Data Parfum Berhasil Diambil",
-		"data":    parfums,
+		"data":    responseData,
 	})
 }
 
@@ -44,9 +56,17 @@ func (c *ParfumController) GetByID(ctx *gin.Context) {
 		return
 	}
 
+	isUsed, _ := c.parfumRepo.CheckIsUsed(id)
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "Data Parfum Berhasil Diambil",
-		"data":    parfum,
+		"data": gin.H{
+			"id_parfum":     parfum.IDParfum,
+			"nama_parfum":   parfum.NamaParfum,
+			"keterangan":    parfum.Keterangan,
+			"status_parfum": parfum.StatusParfum,
+			"is_used":       isUsed,
+		},
 	})
 }
 
@@ -105,6 +125,14 @@ func (c *ParfumController) Update(ctx *gin.Context) {
 		return
 	}
 
+	isUsed, _ := c.parfumRepo.CheckIsUsed(id)
+	if isUsed {
+		if input.NamaParfum != nil && *input.NamaParfum != parfum.NamaParfum {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Nama parfum tidak dapat diubah karena telah digunakan dalam transaksi"})
+			return
+		}
+	}
+
 	if input.NamaParfum != nil {
 		parfum.NamaParfum = *input.NamaParfum
 	}
@@ -138,6 +166,12 @@ func (c *ParfumController) Delete(ctx *gin.Context) {
 	parfum, err := c.parfumRepo.FindByID(id)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Data parfum tidak ditemukan"})
+		return
+	}
+
+	isUsed, _ := c.parfumRepo.CheckIsUsed(id)
+	if isUsed {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Parfum tidak dapat dihapus karena telah digunakan dalam transaksi"})
 		return
 	}
 

@@ -15,6 +15,7 @@ type LayananRepository interface {
 	Delete(id uint) error
 	UpdateStatusLayanan(layananID uint, statuses []model.ReferensiStatusLayanan) error
 	UpdatePaketLayanan(layananID uint, pakets []model.PaketLayanan) error
+	CheckIsUsed(id uint) (bool, error)
 }
 
 type layananRepository struct {
@@ -153,4 +154,10 @@ func (r *layananRepository) Delete(id uint) error {
 	r.db.Where("id_layanan = ?", id).Delete(&model.ReferensiStatusLayanan{})
 	r.db.Where("id_layanan = ?", id).Delete(&model.PaketLayanan{})
 	return r.db.Delete(&model.Layanan{}, id).Error
+}
+
+func (r *layananRepository) CheckIsUsed(id uint) (bool, error) {
+	var count int64
+	err := r.db.Table("order").Where("id_layanan = ?", id).Count(&count).Error
+	return count > 0, err
 }

@@ -57,7 +57,27 @@ func (ctrl *layananController) GetAll(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data layanan"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": layanans})
+	
+	// Check if each service is used and map to custom map with is_used
+	var responseData []gin.H
+	for _, l := range layanans {
+		isUsed, _ := ctrl.layananRepo.CheckIsUsed(l.IDLayanan)
+		responseData = append(responseData, gin.H{
+			"id_layanan":        l.IDLayanan,
+			"nama_layanan":      l.NamaLayanan,
+			"gambar_layanan":    l.GambarLayanan,
+			"jenis_satuan":      l.JenisSatuan,
+			"harga_per_satuan":  l.HargaPerSatuan,
+			"status_layanan":    l.StatusLayanan,
+			"referensi_status":  l.ReferensiStatus,
+			"paket_layanan":     l.PaketLayanan,
+			"warna_layanan":     l.WarnaLayanan,
+			"deskripsi_layanan": l.DeskripsiLayanan,
+			"is_used":            isUsed,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": responseData})
 }
 
 func (ctrl *layananController) GetByID(c *gin.Context) {
@@ -68,7 +88,24 @@ func (ctrl *layananController) GetByID(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Layanan tidak ditemukan"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": layanan})
+
+	isUsed, _ := ctrl.layananRepo.CheckIsUsed(layanan.IDLayanan)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"id_layanan":        layanan.IDLayanan,
+			"nama_layanan":      layanan.NamaLayanan,
+			"gambar_layanan":    layanan.GambarLayanan,
+			"jenis_satuan":      layanan.JenisSatuan,
+			"harga_per_satuan":  layanan.HargaPerSatuan,
+			"status_layanan":    layanan.StatusLayanan,
+			"referensi_status":  layanan.ReferensiStatus,
+			"paket_layanan":     layanan.PaketLayanan,
+			"warna_layanan":     layanan.WarnaLayanan,
+			"deskripsi_layanan": layanan.DeskripsiLayanan,
+			"is_used":            isUsed,
+		},
+	})
 }
 
 func (ctrl *layananController) Create(c *gin.Context) {
@@ -178,6 +215,32 @@ func (ctrl *layananController) Update(c *gin.Context) {
 		return
 	}
 
+	isUsed, _ := ctrl.layananRepo.CheckIsUsed(id)
+	if isUsed {
+		// Jika digunakan, kita tidak boleh mengubah: nama_layanan, jenis_satuan, referensi_status
+		if input.NamaLayanan != nil && *input.NamaLayanan != layanan.NamaLayanan {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Nama layanan tidak dapat diubah karena telah digunakan dalam transaksi"})
+			return
+		}
+		if input.JenisSatuan != nil && *input.JenisSatuan != layanan.JenisSatuan {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Jenis satuan tidak dapat diubah karena telah digunakan dalam transaksi"})
+			return
+		}
+		if input.ReferensiStatus != nil {
+			// Periksa apakah alur status berubah secara jumlah atau nama
+			if len(*input.ReferensiStatus) != len(layanan.ReferensiStatus) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Alur status layanan tidak dapat diubah karena telah digunakan dalam transaksi"})
+				return
+			}
+			for idx, sName := range *input.ReferensiStatus {
+				if strings.TrimSpace(sName) != layanan.ReferensiStatus[idx].NamaStatus {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Nama alur status layanan tidak dapat diubah karena telah digunakan dalam transaksi"})
+					return
+				}
+			}
+		}
+	}
+
 	// Update data utama
 	namaLayanan := layanan.NamaLayanan
 	if input.NamaLayanan != nil {
@@ -273,6 +336,12 @@ func (ctrl *layananController) Delete(c *gin.Context) {
 	layanan, err := ctrl.layananRepo.FindByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Layanan tidak ditemukan"})
+		return
+	}
+
+	isUsed, _ := ctrl.layananRepo.CheckIsUsed(id)
+	if isUsed {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Layanan tidak dapat dihapus karena telah digunakan dalam transaksi"})
 		return
 	}
 

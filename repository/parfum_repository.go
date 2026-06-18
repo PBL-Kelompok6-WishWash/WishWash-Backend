@@ -11,6 +11,7 @@ type ParfumRepository interface {
 	Create(parfum model.Parfum) (model.Parfum, error)
 	Update(parfum model.Parfum) (model.Parfum, error)
 	Delete(parfum model.Parfum) error
+	CheckIsUsed(id int) (bool, error)
 }
 
 type parfumRepository struct {
@@ -46,4 +47,10 @@ func (r *parfumRepository) Update(parfum model.Parfum) (model.Parfum, error) {
 func (r *parfumRepository) Delete(parfum model.Parfum) error {
 	err := r.db.Delete(&parfum).Error
 	return err
+}
+
+func (r *parfumRepository) CheckIsUsed(id int) (bool, error) {
+	var count int64
+	err := r.db.Table("order").Where("id_parfum = ?", id).Count(&count).Error
+	return count > 0, err
 }
