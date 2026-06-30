@@ -31,7 +31,7 @@ func (r *layananRepository) FindAll() ([]model.Layanan, error) {
 	// Preload referensi status dan paket layanan
 	err := r.db.Preload("ReferensiStatus", func(db *gorm.DB) *gorm.DB {
 		return db.Order("urutan_tahap ASC")
-	}).Preload("PaketLayanan").Find(&layanans).Error
+	}).Preload("PaketLayanan").Order("id_layanan ASC").Find(&layanans).Error
 	return layanans, err
 }
 
