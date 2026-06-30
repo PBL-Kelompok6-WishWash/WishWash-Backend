@@ -411,6 +411,18 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		return
 	}
 
+	// Validasi: Karyawan hanya boleh mengupdate pesanan yang belum di-assign atau miliknya sendiri
+	if roleID == 2 {
+		if karyawanID == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Data karyawan Anda tidak ditemukan"})
+			return
+		}
+		if order.KaryawanID != nil && *order.KaryawanID != *karyawanID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Pesanan ini dipegang oleh karyawan lain"})
+			return
+		}
+	}
+
 	previousIsCourierOnWay := order.IsCourierOnWay
 	previousKuantitas := order.Kuantitas
 
@@ -493,8 +505,9 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 		var refStatus model.ReferensiStatusLayanan
 		var errRef error
 		
-		if targetStatus == "Dibatalkan" || targetStatus == "Batal" {
-			errRef = config.DB.Where("id_layanan = ? AND nama_status = ?", order.LayananID, "Dibatalkan").First(&refStatus).Error
+		lowerTarget := strings.ToLower(targetStatus)
+		if lowerTarget == "dibatalkan" || lowerTarget == "batal" {
+			errRef = config.DB.Where("id_layanan = ? AND (LOWER(nama_status) = ? OR LOWER(nama_status) = ?)", order.LayananID, "dibatalkan", "batal").First(&refStatus).Error
 			if errRef != nil {
 				var maxUrutan int
 				config.DB.Model(&model.ReferensiStatusLayanan{}).Where("id_layanan = ?", order.LayananID).Select("COALESCE(MAX(urutan_tahap), 0)").Row().Scan(&maxUrutan)
@@ -744,21 +757,19 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 			namaPelanggan = "Pelanggan"
 		}
 		if input.MetodeBayar != "" && input.MetodeBayar != "BELUM DIBAYAR" && strings.ToUpper(input.MetodeBayar) != "QRIS" {
-			ctrl.triggerKaryawanNotification(
-				"Metode Bayar Dipilih 💵",
-				fmt.Sprintf("Pelanggan %s telah memilih metode pembayaran %s untuk pesanan %s.", namaPelanggan, input.MetodeBayar, order.KodeOrder),
-			)
-		}
-		if input.TipeLogistik != "" {
-			logistikLabel := input.TipeLogistik
-			if input.TipeLogistik == "Drop-off" {
-				logistikLabel = "Ambil Sendiri di Toko"
-			} else {
-				logistikLabel = "Kirim Lewat Kurir"
+			logistikLabel := order.TipeLogistik
+			if input.TipeLogistik != "" {
+				logistikLabel = input.TipeLogistik
 			}
+			
+			logistikText := "Kirim Lewat Kurir"
+			if logistikLabel == "Drop-off" {
+				logistikText = "Ambil Sendiri di Toko"
+			}
+
 			ctrl.triggerKaryawanNotification(
-				"Metode Penyerahan Dipilih 🚚",
-				fmt.Sprintf("Pelanggan %s telah memilih metode penyerahan '%s' untuk pesanan %s.", namaPelanggan, logistikLabel, order.KodeOrder),
+				"Konfirmasi Pembayaran & Antar 💵",
+				fmt.Sprintf("Pelanggan %s telah mengonfirmasi pembayaran %s dengan metode penyerahan '%s' untuk pesanan %s.", namaPelanggan, input.MetodeBayar, logistikText, order.KodeOrder),
 			)
 		}
 	}

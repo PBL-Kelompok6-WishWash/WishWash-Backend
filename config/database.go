@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
-	// "os"
+	"os"
 
 	"github.com/PBL-Kelompok6-WishWash/backend/model" // Import model
 	"gorm.io/driver/postgres"
@@ -13,12 +13,27 @@ import (
 var DB *gorm.DB
 
 func ConnectDatabase() {
-	// Membaca kredensial dari environment variables (atau hardcode sementara untuk tes)
-	host := "localhost"
-	user := "postgres"
-	password := "12345678" // Password database
-	dbname := "wishwash_db"
-	port := "5433"         // Pastikan port-nya 5433
+	// Membaca kredensial dari environment variables dengan fallback
+	host := os.Getenv("DB_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	user := os.Getenv("DB_USER")
+	if user == "" {
+		user = "postgres"
+	}
+	password := os.Getenv("DB_PASSWORD")
+	if password == "" {
+		password = "12345678"
+	}
+	dbname := os.Getenv("DB_NAME")
+	if dbname == "" {
+		dbname = "wishwash_db"
+	}
+	port := os.Getenv("DB_PORT")
+	if port == "" {
+		port = "5433"
+	}
 
 	// Konfigurasi string koneksi
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Jakarta",
