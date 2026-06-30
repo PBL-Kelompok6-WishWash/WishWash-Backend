@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"github.com/PBL-Kelompok6-WishWash/backend/model"
 	"gorm.io/gorm"
 )
