@@ -772,6 +772,14 @@ func (ctrl *orderController) UpdateOrder(c *gin.Context) {
 				fmt.Sprintf("Pelanggan %s telah mengonfirmasi pembayaran %s dengan metode penyerahan '%s' untuk pesanan %s.", namaPelanggan, input.MetodeBayar, logistikText, order.KodeOrder),
 			)
 		}
+
+		// Notif pembatalan oleh pelanggan dikirim ke karyawan
+		if targetStatus != "" && (strings.ToLower(targetStatus) == "batal" || strings.ToLower(targetStatus) == "dibatalkan") {
+			ctrl.triggerKaryawanNotification(
+				"Pesanan Dibatalkan Pelanggan ❌",
+				fmt.Sprintf("Pelanggan %s telah membatalkan pesanan dengan kode %s.", namaPelanggan, order.KodeOrder),
+			)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1127,8 +1135,22 @@ func (ctrl *orderController) triggerCustomerOrderNotification(orderID uint, noti
 				title = "Pesanan Dikonfirmasi & Proses Timbang ⚖️"
 				message = fmt.Sprintf("Pesanan Anda dengan kode %s telah dikonfirmasi oleh petugas WishWash dan saat ini masuk ke antrean timbang.", kodeOrder)
 			case "batal", "dibatalkan":
-				title = "Pesanan Dibatalkan Toko ❌"
-				message = fmt.Sprintf("Pesanan %s Anda telah dibatalkan oleh pihak WishWash Laundry. Hubungi kami untuk informasi lebih lanjut.", kodeOrder)
+				isByKaryawan := false
+				var latestHistory model.RiwayatStatusDetail
+				errLatest := config.DB.Where("id_order = ?", order.IDOrder).
+					Order("id_riwayat_status_detail desc").
+					First(&latestHistory).Error
+				if errLatest == nil && latestHistory.KaryawanID != nil {
+					isByKaryawan = true
+				}
+
+				if isByKaryawan {
+					title = "Pesanan Dibatalkan Toko ❌"
+					message = fmt.Sprintf("Pesanan %s Anda telah dibatalkan oleh pihak WishWash Laundry. Hubungi kami untuk informasi lebih lanjut.", kodeOrder)
+				} else {
+					title = "Pesanan Dibatalkan Pelanggan ❌"
+					message = fmt.Sprintf("Pesanan %s Anda telah berhasil dibatalkan.", kodeOrder)
+				}
 			case "proses cuci":
 				title = "Cucian Sedang Dicuci 🧼"
 				message = fmt.Sprintf("Pesanan %s (%s - %s - %s) kini masuk ke tahap pencucian.",
